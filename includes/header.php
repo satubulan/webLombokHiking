@@ -48,7 +48,7 @@
                     <div class="mobile-menu-toggle">
                         <span></span>
                         <span></span>
-                        <span></span>
+                        <span></span> 
                     </div>
                 </div>
             </div>
