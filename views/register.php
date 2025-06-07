@@ -1,7 +1,6 @@
-
 <?php
 session_start();
-require_once '../config/database.php';
+require_once '../config.php';
 
 $error = '';
 $success = '';
@@ -142,7 +141,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </style>
 </head>
 <body>
-    <?php include_once '../includes/simple-header.php'; ?>
     
     <div class="container">
         <div class="auth-container">
@@ -165,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <?php endif; ?>
             
             <?php if (!$success): ?>
-                <form class="auth-form" method="POST" action="register.php" id="registerForm" onsubmit="return validateForm('registerForm')">
+                <form class="views" method="POST" action="register.php" id="registerForm" onsubmit="return validateForm('registerForm')">
                     <div class="form-group">
                         <label for="name">Nama Lengkap</label>
                         <input type="text" id="name" name="name" required>
@@ -210,8 +208,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
         </div>
     </div>
-    
-    <?php include_once '../includes/footer.php'; ?>
     
     <script src="../assets/js/main.js"></script>
     <script>
