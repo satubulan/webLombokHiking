@@ -8,8 +8,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     exit();
 }
 
-// Ambil semua guide
-$result = $conn->query("SELECT * FROM guides ORDER BY id DESC");
+// Ambil semua guide dengan urutan ascending
+$result = $conn->query("SELECT * FROM guides ORDER BY id ASC");
 $guides = $result->fetch_all(MYSQLI_ASSOC);
 ?>
 
@@ -17,10 +17,9 @@ $guides = $result->fetch_all(MYSQLI_ASSOC);
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Manajemen Guide - Admin Lombok Hiking</title>
+    <title>Daftar Guide</title>
     <link rel="stylesheet" href="../assets/css/style.css">
-    <link rel="stylesheet" href="../assets/css/guide.css">
-
+    <link rel="stylesheet" href="../assets/css/users.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
@@ -43,50 +42,56 @@ $guides = $result->fetch_all(MYSQLI_ASSOC);
 
 
         <!-- Main Content -->
-        <main class="admin-main">
-            <div style="margin-bottom: 20px;">
+        <main class="admin-main" style="flex:1;padding:30px;overflow-x:auto;">
+        
+            <div class="admin-header">
+                <h1>Daftar Guide</h1>
                 <a href="guide_create.php" class="btn btn-primary">+ Tambah Guide</a>
             </div>
 
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Nama</th>
-                        <th>Rating</th>
-                        <th>Bahasa</th>
-                        <th>Foto</th>
-                        <th>Status</th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (count($guides) > 0): ?>
-                        <?php foreach ($guides as $guide): ?>
-                            <tr>
-                                <td><?php echo $guide['id']; ?></td>
-                                <td><?php echo htmlspecialchars($guide['name']); ?></td>
-                                <td><?php echo number_format($guide['rating'], 1); ?></td>
-                                <td><?php echo htmlspecialchars($guide['languages']); ?></td>
-                                <td>
-                                    <img src="../assets/images/<?php echo htmlspecialchars($guide['image_url']); ?>" alt="guide">
-                                </td>
-                                <td>
-                                    <?php echo $guide['active'] ? '<span style="color:green;">Aktif</span>' : '<span style="color:red;">Nonaktif</span>'; ?>
-                                </td>
-                                <td>
-                                    <a href="guide_edit.php?id=<?php echo $guide['id']; ?>" class="btn btn-secondary btn-sm">Edit</a>
-                                    <a href="guide_delete.php?id=<?php echo $guide['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin hapus?')">Hapus</a>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
+            <div class="admin-table-container">
+                <table class="admin-table" cellspacing="0" cellpadding="0">
+                    <thead>
                         <tr>
-                            <td colspan="7" style="padding: 20px; text-align: center;">Belum ada guide.</td>
+                            <th>ID</th>
+                            <th>Nama</th>
+                            <th>Rating</th>
+                            <th>Bahasa</th>
+                            <th>Foto</th>
+                            <th>Status</th>
+                            <th>Aksi</th>
                         </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        <?php if (count($guides) > 0): ?>
+                            <?php foreach ($guides as $index => $guide): ?>
+                                <tr>
+                                    <td><?php echo $index + 1; ?></td>
+                                    <td><?php echo htmlspecialchars($guide['name']); ?></td>
+                                    <td><?php echo number_format($guide['rating'], 1); ?></td>
+                                    <td><?php echo htmlspecialchars($guide['languages']); ?></td>
+                                    <td><img src="../assets/images/<?php echo htmlspecialchars($guide['image_url']); ?>" alt="guide" style="width:80px; border-radius:4px;"></td>
+                                    <td>
+                                        <?php if ($guide['active']): ?>
+                                            <span class="status-active">Aktif</span>
+                                        <?php else: ?>
+                                            <span class="status-inactive">Nonaktif</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <a href="edit_guide.php?id=<?php echo $guide['id']; ?>" class="btn btn-edit"><i class="fas fa-edit"></i> Edit</a>
+                                        <a href="delete_guide.php?id=<?php echo $guide['id']; ?>" class="btn btn-delete" onclick="return confirm('Yakin ingin hapus guide ini?')"><i class="fas fa-trash-alt"></i> Hapus</a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="7" class="text-center">Tidak ada guide terdaftar.</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
         </main>
     </div>
 

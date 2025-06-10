@@ -10,6 +10,26 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
 
 // Ambil data gunung dari database
 $result = $conn->query("SELECT * FROM mountains");
+
+// Struktur tabel users
+$conn->query("
+    CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(100) NOT NULL UNIQUE,
+        password VARCHAR(255) NOT NULL,
+        phone VARCHAR(20) NOT NULL,
+        role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
+        active TINYINT(1) NOT NULL DEFAULT 1,
+        profile_image VARCHAR(255) DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+");
+
+// Tambah kolom profile_image ke tabel users
+$conn->query("
+    ALTER TABLE users ADD COLUMN profile_image VARCHAR(255) DEFAULT NULL AFTER phone;
+");
 ?>
 
 <!DOCTYPE html>

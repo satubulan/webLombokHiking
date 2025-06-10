@@ -9,58 +9,220 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
 }
 
 $adminId = $_SESSION['user_id'];
-$query = $conn->prepare("SELECT name, email, phone, role FROM users WHERE id = ?");
+$query = $conn->prepare("SELECT name, email, phone, role, profile_image FROM users WHERE id = ?");
+
+// Cek apakah prepare statement berhasil
+if ($query === false) {
+    die("Error preparing statement: " . $conn->error);
+}
+
 $query->bind_param("i", $adminId);
 $query->execute();
 $result = $query->get_result();
 $user = $result->fetch_assoc();
+
+// Jika ada pesan sukses dari halaman lain
+if (isset($_GET['success'])) {
+    $success = $_GET['success'];
+}
 ?>
 
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Profil Admin - Lombok Hiking</title>
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <title>Profil Admin</title>
+    <link rel="stylesheet" href="../assets/css/style.css" />
+    <link rel="stylesheet" href="../assets/css/users.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
 <body>
-    <div class="admin-layout">
-        <!-- Sidebar -->
-        <aside class="admin-sidebar">
-            <div class="nav-section-title">Admin Panel</div>
-            <ul class="nav-links">
-                <li><a href="index.php" class="nav-link">Dashboard</a></li>
-                <li><a href="users.php" class="nav-link">Pengguna</a></li>
-                <li><a href="guides.php" class="nav-link">Guide</a></li>
-                <li><a href="mountains.php" class="nav-link">Gunung</a></li>
-                <li><a href="trips.php" class="nav-link">Trip</a></li>
-                <li><a href="bookings.php" class="nav-link">Booking</a></li>
-                <li><a href="feedback.php" class="nav-link">Feedback</a></li>
-                <li><a href="profile.php" class="nav-link active">Profil</a></li>
-                <li><a href="../logout.php" class="nav-link">Logout</a></li>
-            </ul>
-        </aside>
+<div class="admin-layout" style="display:flex;min-height:100vh;">
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+        <div class="nav-section-title">Admin Panel</div>
+        <ul class="nav-links">
+            <li><a href="index.php" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a></li>
+            <li><a href="users.php" class="nav-link"><i class="fas fa-users"></i> Pengguna</a></li>
+            <li><a href="guides.php" class="nav-link"><i class="fas fa-map-signs"></i> Guide</a></li>
+            <li><a href="mountains.php" class="nav-link"><i class="fas fa-mountain"></i> Gunung</a></li>
+            <li><a href="trips.php" class="nav-link"><i class="fas fa-route"></i> Trip</a></li>
+            <li><a href="bookings.php" class="nav-link"><i class="fas fa-calendar-alt"></i> Booking</a></li>
+            <li><a href="feedback.php" class="nav-link"><i class="fas fa-comment-dots"></i> Feedback</a></li>
+            <li><a href="profile.php" class="nav-link active"><i class="fas fa-user-cog"></i> Profil</a></li>
+            <li><a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+        </ul>
+    </aside>
 
-        <!-- Header -->
-        <header class="admin-header">
+    <main class="admin-main" style="flex:1;padding:30px;overflow-x:auto;">
+        <div class="admin-header">
             <h1>Profil Admin</h1>
-        </header>
+        </div>
 
-        <!-- Main Content -->
-        <main class="admin-main">
-            <div style="background-color: white; padding: 20px; border-radius: 8px; max-width: 600px;">
-                <h2 style="margin-bottom: 20px;">Informasi Profil</h2>
+        <?php if (isset($success)): ?>
+            <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
+        <?php endif; ?>
 
-                <p><strong>Nama:</strong> <?php echo htmlspecialchars($user['name']); ?></p>
-                <p><strong>Email:</strong> <?php echo htmlspecialchars($user['email']); ?></p>
-                <p><strong>No. Telepon:</strong> <?php echo htmlspecialchars($user['phone']); ?></p>
-                <p><strong>Role:</strong> <?php echo htmlspecialchars($user['role']); ?></p>
+        <!-- Profil Card -->
+        <div class="admin-form-container" style="max-width: 600px;">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="profile-avatar">
+                        <?php if ($user['profile_image']): ?>
+                            <img src="../assets/images/profiles/<?php echo htmlspecialchars($user['profile_image']); ?>" alt="Profile Image">
+                        <?php else: ?>
+                            <i class="fas fa-user-circle"></i>
+                        <?php endif; ?>
+                    </div>
+                    <h2><?php echo htmlspecialchars($user['name']); ?></h2>
+                    <span class="profile-role"><?php echo htmlspecialchars($user['role']); ?></span>
+                </div>
 
-                <a href="#" class="btn btn-secondary" style="margin-top: 20px;">Ubah Password</a>
+                <div class="profile-info">
+                    <div class="info-group">
+                        <label><i class="fas fa-envelope"></i> Email</label>
+                        <p><?php echo htmlspecialchars($user['email']); ?></p>
+                    </div>
+
+                    <div class="info-group">
+                        <label><i class="fas fa-phone"></i> No. Telepon</label>
+                        <p><?php echo htmlspecialchars($user['phone']); ?></p>
+                    </div>
+                </div>
+
+                <div class="profile-actions">
+                    <a href="edit_profile.php" class="btn btn-primary"><i class="fas fa-edit"></i> Edit Profil</a>
+                    <a href="change_password.php" class="btn btn-secondary"><i class="fas fa-key"></i> Ubah Password</a>
+                </div>
             </div>
-        </main>
-    </div>
+        </div>
+    </main>
+</div>
 
-    <script src="../assets/js/main.js"></script>
+<style>
+.profile-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 30px;
+}
+
+.profile-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.profile-avatar {
+    width: 150px;
+    height: 150px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #f5f5f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-avatar i {
+    font-size: 100px;
+    color: #ccc;
+}
+
+.profile-header h2 {
+    margin: 0;
+    color: #333;
+    font-size: 24px;
+}
+
+.profile-role {
+    color: #666;
+    font-size: 14px;
+    display: block;
+    margin-top: 5px;
+}
+
+.profile-info {
+    margin-bottom: 30px;
+}
+
+.info-group {
+    margin-bottom: 20px;
+}
+
+.info-group label {
+    display: block;
+    color: #666;
+    margin-bottom: 5px;
+    font-size: 14px;
+}
+
+.info-group label i {
+    margin-right: 8px;
+    color: #4a90e2;
+}
+
+.info-group p {
+    margin: 0;
+    color: #333;
+    font-size: 16px;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.profile-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.profile-actions .btn {
+    padding: 10px 20px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.profile-actions .btn i {
+    margin-right: 8px;
+}
+
+.btn-primary {
+    background: #4a90e2;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #357abd;
+}
+
+.btn-secondary {
+    background: #f5f5f5;
+    color: #333;
+}
+
+.btn-secondary:hover {
+    background: #e0e0e0;
+}
+
+.alert {
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+.alert-success {
+    background: #efe;
+    color: #0c0;
+    border: 1px solid #cfc;
+}
+</style>
 </body>
 </html>

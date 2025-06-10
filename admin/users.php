@@ -7,7 +7,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     exit();
 }
 
-$result = $conn->query("SELECT * FROM users ORDER BY id DESC");
+$result = $conn->query("SELECT * FROM users ORDER BY id ASC");
 $users = $result->fetch_all(MYSQLI_ASSOC);
 ?>
 
@@ -41,6 +41,10 @@ $users = $result->fetch_all(MYSQLI_ASSOC);
 
     <!-- Main Content -->
     <main class="admin-main">
+        <div class="admin-header">
+            <h1>Daftar Pengguna</h1>
+        </div>
+
         <div class="admin-table-container">
             <table class="admin-table" cellspacing="0" cellpadding="0">
                 <thead>
@@ -56,9 +60,9 @@ $users = $result->fetch_all(MYSQLI_ASSOC);
                 </thead>
                 <tbody>
                     <?php if (count($users) > 0): ?>
-                        <?php foreach ($users as $user): ?>
+                        <?php foreach ($users as $index => $user): ?>
                             <tr>
-                                <td><?php echo $user['id']; ?></td>
+                                <td><?php echo $index + 1; ?></td>
                                 <td><?php echo htmlspecialchars($user['name']); ?></td>
                                 <td><?php echo htmlspecialchars($user['email']); ?></td>
                                 <td><?php echo htmlspecialchars($user['phone']); ?></td>

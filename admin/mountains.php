@@ -7,8 +7,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     exit();
 }
 
-// Ambil data gunung
-$result = $conn->query("SELECT * FROM mountains ORDER BY id DESC");
+// Ambil data gunung dengan urutan ascending
+$result = $conn->query("SELECT * FROM mountains ORDER BY id ASC");
 $mountains = $result->fetch_all(MYSQLI_ASSOC);
 
 // Jika form tambah gunung disubmit
@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_mountain'])) {
     $image_url = $conn->real_escape_string($_POST['image_url']);
 
     $conn->query("INSERT INTO mountains (name, description, height, image_url) VALUES ('$name', '$description', $height, '$image_url')");
-    header("Location: mountains.php"); // Refresh agar data tampil terbaru
+    header("Location: mountains.php");
     exit();
 }
 ?>
@@ -28,16 +28,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_mountain'])) {
 <html lang="id">
 <head>
     <meta charset="UTF-8" />
-    <title>Manajemen Gunung - Admin Lombok Hiking</title>
+    <title>Daftar Gunung</title>
     <link rel="stylesheet" href="../assets/css/style.css" />
-    <link rel="stylesheet" href="../assets/css/mountains.css" />
-
-
+    <link rel="stylesheet" href="../assets/css/users.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
 <body>
 <div class="admin-layout" style="display:flex;min-height:100vh;">
-    <!-- Sidebar kamu bisa sesuaikan/ambil dari file lain -->
+    <!-- Sidebar -->
     <aside class="admin-sidebar">
         <div class="nav-section-title">Admin Panel</div>
         <ul class="nav-links">
@@ -53,35 +51,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_mountain'])) {
         </ul>
     </aside>
     
-
     <main class="admin-main" style="flex:1;padding:30px;overflow-x:auto;">
-        <h1 style="margin-bottom:20px;color:#2e8b57;">Manajemen Gunung</h1>
-
-        <!-- Tombol untuk toggle form -->
-        <button id="toggleFormBtn" class="btn btn-primary" style="margin-bottom:20px;">Tambah Gunung</button>
-
-        <!-- Form Tambah Gunung (sebelumnya disembunyikan) -->
-        <form id="mtnForm" style="display:none;" method="POST" action="mountains.php">
-            <input type="hidden" name="add_mountain" value="1" />
-            <label>Nama Gunung:</label>
-            <input type="text" name="name" required />
-
-            <label>Deskripsi:</label>
-            <textarea name="description" rows="3" required></textarea>
-
-            <label>Tinggi (m):</label>
-            <input type="number" name="height" required />
-
-            <label>URL Gambar:</label>
-            <input type="text" name="image_url" required />
-
-            <button type="submit">Simpan</button>
-        </form>
+        <div class="admin-header">
+            <h1>Daftar Gunung</h1>
+            <a href="mountain_create.php" class="btn btn-primary"><i class="fas fa-plus"></i> Tambah Gunung</a>
+        </div>
 
         <!-- Tabel daftar gunung -->
         <div class="admin-table-container">
             <table class="admin-table" cellspacing="0" cellpadding="0">
-                <thead>
+                <thead>   
                     <tr>
                         <th>ID</th>
                         <th>Nama</th>
@@ -93,16 +72,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_mountain'])) {
                 </thead>
                 <tbody>
                     <?php if (count($mountains) > 0): ?>
-                        <?php foreach ($mountains as $m): ?>
+                        <?php foreach ($mountains as $index => $mountain): ?>
                             <tr>
-                                <td><?php echo $m['id']; ?></td>
-                                <td><?php echo htmlspecialchars($m['name']); ?></td>
-                                <td><?php echo htmlspecialchars($m['description']); ?></td>
-                                <td><?php echo $m['height']; ?></td>
-                                <td><img src="<?php echo htmlspecialchars($m['image_url']); ?>" alt="Gambar Gunung" style="width:80px; border-radius:4px;"></td>
+                                <td><?php echo $index + 1; ?></td>
+                                <td><?php echo htmlspecialchars($mountain['name']); ?></td>
+                                <td><?php echo htmlspecialchars($mountain['description']); ?></td>
+                                <td><?php echo number_format($mountain['height']); ?></td>
                                 <td>
-                                    <a href="edit_mountain.php?id=<?php echo $m['id']; ?>" class="btn btn-edit"><i class="fas fa-edit"></i> Edit</a>
-                                    <a href="delete_mountain.php?id=<?php echo $m['id']; ?>" class="btn btn-delete" onclick="return confirm('Yakin ingin hapus gunung ini?')"><i class="fas fa-trash-alt"></i> Hapus</a>
+                                    <?php if (!empty($mountain['image_url'])): ?>
+                                        <img src="../assets/images/<?php echo htmlspecialchars($mountain['image_url']); ?>" alt="Gambar Gunung" style="width:80px; border-radius:4px;">
+                                    <?php else: ?>
+                                        <span class="text-muted">Tidak ada gambar</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <a href="edit_mountain.php?id=<?php echo $mountain['id']; ?>" class="btn btn-edit"><i class="fas fa-edit"></i> Edit</a>
+                                    <a href="delete_mountain.php?id=<?php echo $mountain['id']; ?>" class="btn btn-delete" onclick="return confirm('Yakin ingin hapus gunung ini?')"><i class="fas fa-trash-alt"></i> Hapus</a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -117,18 +102,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_mountain'])) {
     </main>
 </div>
 
-<script>
-    // Toggle tampil/simpan form tambah gunung
-    document.getElementById('toggleFormBtn').addEventListener('click', function(){
-        const form = document.getElementById('mtnForm');
-        if (form.style.display === 'none' || form.style.display === '') {
-            form.style.display = 'block';
-            this.textContent = 'Batal Tambah Gunung';
-        } else {
-            form.style.display = 'none';
-            this.textContent = 'Tambah Gunung';
-        }
-    });
-</script>
+<script src="../assets/js/main.js"></script>
 </body>
 </html>
