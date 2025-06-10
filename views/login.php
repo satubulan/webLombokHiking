@@ -8,6 +8,8 @@ $error = '';
 if (isset($_SESSION['user_id'])) {
     if ($_SESSION['user_role'] === 'admin') {
         header('Location: ../admin/index.php');
+    } elseif ($_SESSION['user_role'] === 'guide') {
+        header('Location: ../guides/dashboard.php');
     } else {
         header('Location: dashboard-user.php');
     }
@@ -37,6 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($user['role'] === 'admin') {
                     header('Location: ../admin/index.php');
+                } elseif ($user['role'] === 'guide') {
+                    header('Location: ../guides/dashboard.php');
                 } else {
                     header('Location: dashboard-user.php');
                 }
