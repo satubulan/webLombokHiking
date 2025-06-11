@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
 }
 
 $adminId = $_SESSION['user_id'];
-$query = $conn->prepare("SELECT name, email, phone, role, profile_image FROM users WHERE id = ?");
+$query = $conn->prepare("SELECT name, email, phone, role, profile_picture FROM users WHERE id = ?");
 
 // Cek apakah prepare statement berhasil
 if ($query === false) {
@@ -33,7 +33,7 @@ if (isset($_GET['success'])) {
     <meta charset="UTF-8">
     <title>Profil Admin</title>
     <link rel="stylesheet" href="../assets/css/style.css" />
-    <link rel="stylesheet" href="../assets/css/users.css" />
+    <link rel="stylesheet" href="../assets/css/trips.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
 <body>
@@ -64,35 +64,54 @@ if (isset($_GET['success'])) {
         <?php endif; ?>
 
         <!-- Profil Card -->
-        <div class="admin-form-container" style="max-width: 600px;">
+        <div class="profile-container">
             <div class="profile-card">
                 <div class="profile-header">
                     <div class="profile-avatar">
-                        <?php if ($user['profile_image']): ?>
-                            <img src="../assets/images/profiles/<?php echo htmlspecialchars($user['profile_image']); ?>" alt="Profile Image">
+                        <?php if ($user['profile_picture']): ?>
+                            <img src="../assets/images/profiles/<?php echo htmlspecialchars($user['profile_picture']); ?>" alt="Profile Image">
                         <?php else: ?>
                             <i class="fas fa-user-circle"></i>
                         <?php endif; ?>
                     </div>
-                    <h2><?php echo htmlspecialchars($user['name']); ?></h2>
-                    <span class="profile-role"><?php echo htmlspecialchars($user['role']); ?></span>
+                    <h1 class="profile-name"><?php echo htmlspecialchars($user['name']); ?></h1>
+                    <span class="profile-role"><?php echo ucfirst(htmlspecialchars($user['role'])); ?></span>
                 </div>
 
                 <div class="profile-info">
-                    <div class="info-group">
-                        <label><i class="fas fa-envelope"></i> Email</label>
-                        <p><?php echo htmlspecialchars($user['email']); ?></p>
-                    </div>
+                    <div class="info-section">
+                        <h3>Informasi Pribadi</h3>
+                        <div class="info-group">
+                            <div class="info-icon">
+                                <i class="fas fa-envelope"></i>
+                            </div>
+                            <div class="info-content">
+                                <div class="info-label">Email</div>
+                                <div class="info-value"><?php echo htmlspecialchars($user['email']); ?></div>
+                            </div>
+                        </div>
 
-                    <div class="info-group">
-                        <label><i class="fas fa-phone"></i> No. Telepon</label>
-                        <p><?php echo htmlspecialchars($user['phone']); ?></p>
+                        <div class="info-group">
+                            <div class="info-icon">
+                                <i class="fas fa-phone"></i>
+                            </div>
+                            <div class="info-content">
+                                <div class="info-label">Nomor Telepon</div>
+                                <div class="info-value"><?php echo htmlspecialchars($user['phone']); ?></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div class="profile-actions">
-                    <a href="edit_profile.php" class="btn btn-primary"><i class="fas fa-edit"></i> Edit Profil</a>
-                    <a href="change_password.php" class="btn btn-secondary"><i class="fas fa-key"></i> Ubah Password</a>
+                    <a href="edit_profile.php" class="btn btn-edit">
+                        <i class="fas fa-edit"></i>
+                        Edit Profil
+                    </a>
+                    <a href="change_password.php" class="btn btn-password">
+                        <i class="fas fa-key"></i>
+                        Ubah Password
+                    </a>
                 </div>
             </div>
         </div>
