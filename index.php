@@ -38,7 +38,7 @@ $mountains = $conn->query("SELECT * FROM mountains ORDER BY id DESC")->fetch_all
                 <a href="views/login.php" class="btn btn-secondary">Login</a>
                 <a href="views/register.php" class="btn btn-primary">Daftar</a>
             <?php else: ?>
-                <a href="views/dashboard-user.php" class="btn btn-secondary">Dashboard</a>
+                <a href="userbiasa/index.php" class="btn btn-secondary">Dashboard</a>
                 <a href="logout.php" class="btn btn-danger">Logout</a>
             <?php endif; ?>
         </div>
