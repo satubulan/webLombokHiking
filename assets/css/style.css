@@ -501,6 +501,17 @@ table img {
     object-fit: cover;
 }
 
+.badge-notif {
+    background-color: red;
+    color: white;
+    font-size: 11px;
+    padding: 3px 7px;
+    border-radius: 50%;
+    position: absolute;
+    top: 4px;
+    right: -12px;
+}
+
 /* Form Container */
 .form-container {
     max-width: 600px;
