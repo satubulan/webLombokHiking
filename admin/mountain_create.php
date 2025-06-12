@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <title>Tambah Gunung - Admin Lombok Hiking</title>
     <link rel="stylesheet" href="../assets/css/style.css">
-    <link rel="stylesheet" href="../assets/css/users.css">
+    <link rel="stylesheet" href="../assets/css/guide.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <li><a href="guides.php" class="nav-link"><i class="fas fa-map-signs"></i> Guide</a></li>
                 <li><a href="mountains.php" class="nav-link active"><i class="fas fa-mountain"></i> Gunung</a></li>
                 <li><a href="trips.php" class="nav-link"><i class="fas fa-route"></i> Trip</a></li>
-                <li><a href="bookings.php" class="nav-link"><i class="fas fa-calendar-alt"></i> Booking</a></li>
+                <li><a href="lihat_pembayaran.php" class="nav-link"><i class="fas fa-money-bill-wave"></i> Lihat Pembayaran</a></li>
                 <li><a href="feedback.php" class="nav-link"><i class="fas fa-comment-dots"></i> Feedback</a></li>
                 <li><a href="profile.php" class="nav-link"><i class="fas fa-user-cog"></i> Profil</a></li>
                 <li><a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
@@ -87,8 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- Main Content -->
         <main class="admin-main">
             <div class="admin-header">
-                <h1>Tambah Gunung Baru</h1>
-                <a href="mountains.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Kembali</a>
+                <h1>Tambah Gunung</h1>
             </div>
 
             <?php if (isset($error)): ?>
@@ -99,27 +98,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <form method="POST" action="" enctype="multipart/form-data">
                     <div class="form-group">
                         <label for="name">Nama Gunung:</label>
-                        <input type="text" id="name" name="name" required>
+                        <input type="text" id="name" name="name" placeholder="Masukkan nama gunung" required>
                     </div>
 
                     <div class="form-group">
                         <label for="description">Deskripsi:</label>
-                        <textarea id="description" name="description" rows="4" required></textarea>
+                        <textarea id="description" name="description" rows="4" placeholder="Tulis deskripsi singkat tentang gunung" required></textarea>
                     </div>
 
                     <div class="form-group">
                         <label for="height">Tinggi (meter):</label>
-                        <input type="number" id="height" name="height" min="0" required>
+                        <input type="number" id="height" name="height" min="0" placeholder="Contoh: 3726" required>
                     </div>
 
                     <div class="form-group">
                         <label for="image">Foto Gunung:</label>
-                        <input type="file" id="image" name="image" accept="image/*" required>
+                        <input type="file" id="image" name="image" accept="image/*">
                         <small>Format: JPG, JPEG, PNG (Max 5MB)</small>
                     </div>
 
                     <div class="form-group">
-                        <button type="submit" class="btn btn-primary">Simpan Gunung</button>
+                        <label>
+                            <input type="checkbox" name="active" checked>
+                            Status Aktif
+                        </label>
+                    </div>
+
+                    <div class="form-group form-group-actions">
+                        <button type="submit" class="btn btn-primary">Tambah Gunung</button>
+                        <a href="mountains.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Kembali</a>
                     </div>
                 </form>
             </div>

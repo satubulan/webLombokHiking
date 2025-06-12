@@ -34,8 +34,6 @@ body {
 
 .nav-links {
     list-style: none;
-    padding: 0;
-    margin: 0;
 }
 
 .nav-links li {
@@ -66,40 +64,81 @@ body {
     overflow-x: auto;
 }
 
+/* === Header === */
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
 .admin-header h1 {
-    margin: 0 0 20px;
+    margin: 0;
     font-size: 24px;
     color: #2e8b57;
+    font-weight: 600;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* === Search Box === */
+.search-box {
+    display: flex;
+    align-items: center;
+    background: white;
+    border-radius: 6px;
+    padding: 8px 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.search-box i {
+    color: #666;
+    margin-right: 8px;
+}
+
+.search-box input {
+    border: none;
+    outline: none;
+    font-size: 0.9em;
+    width: 200px;
 }
 
 /* === Table Styling === */
-table {
-    width: 100%;
-    border-collapse: collapse;
-    background-color: #ffffff;
+.admin-table-container {
+    background: white;
     border-radius: 10px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
     overflow: hidden;
 }
 
-thead tr {
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.admin-table thead tr {
     background-color: #2e8b57;
     color: white;
 }
 
-thead th {
+.admin-table thead th {
     padding: 12px 15px;
     text-align: left;
+    font-weight: 600;
 }
 
-tbody td {
+.admin-table tbody td {
     padding: 12px 15px;
-    border-bottom: 1px solid #eeeeee;
+    border-bottom: 1px solid #eee;
     vertical-align: middle;
 }
 
-tbody tr:hover {
-    background-color: #f1f1f1;
+.admin-table tbody tr:hover {
+    background-color: #f8f9fa;
 }
 
 /* === Buttons === */
@@ -112,7 +151,6 @@ tbody tr:hover {
     cursor: pointer;
     transition: background-color 0.3s;
     color: white;
-    margin: 2px;
 }
 
 .btn-primary {
@@ -120,15 +158,15 @@ tbody tr:hover {
 }
 
 .btn-primary:hover {
-    background-color: #2e8b57
+    background-color: #246b46;
 }
 
 .btn-secondary {
-    background-color: #2e8b57;
+    background-color: #3498db;
 }
 
 .btn-secondary:hover {
-    background-color: #2e8b57;
+    background-color: #2980b9;
 }
 
 .btn-danger {
@@ -142,6 +180,7 @@ tbody tr:hover {
 .btn-sm {
     padding: 4px 10px;
     font-size: 0.8em;
+    margin-right: 5px;
 }
 
 /* === Status Labels === */
@@ -168,6 +207,37 @@ img {
     border-radius: 6px;
     max-width: 80px;
     height: auto;
+}
+
+/* === Empty State === */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+}
+
+.empty-state i {
+    font-size: 48px;
+    color: #ccc;
+    margin-bottom: 15px;
+}
+
+.empty-state p {
+    font-size: 16px;
+}
+
+/* === Action Buttons === */
+.action-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.action-buttons .btn {
+    padding: 6px 10px;
+}
+
+.action-buttons .btn i {
+    font-size: 14px;
 }
 
 /* === Optional Grid Card for Trips Preview === */

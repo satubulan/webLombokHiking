@@ -11,6 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $conn->real_escape_string($_POST['name']);
     $rating = floatval($_POST['rating']);
     $languages = $conn->real_escape_string($_POST['languages']);
+    $password = password_hash($conn->real_escape_string($_POST['password']), PASSWORD_DEFAULT);
+    $email = $conn->real_escape_string($_POST['email']);
     $active = isset($_POST['active']) ? 1 : 0;
 
     // Handle file upload
@@ -34,8 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $image_url = "guides/" . $image_name;
                     
                     // Insert into database
-                    $sql = "INSERT INTO guides (name, rating, languages, image_url, active) 
-                            VALUES ('$name', $rating, '$languages', '$image_url', $active)";
+                    $sql = "INSERT INTO guides (name, rating, languages, password, email, image_url, active) 
+                            VALUES ('$name', $rating, '$languages', '$password', '$email', '$image_url', $active)";
                     
                     if ($conn->query($sql)) {
                         header("Location: guides.php");
@@ -64,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <title>Tambah Guide - Admin Lombok Hiking</title>
     <link rel="stylesheet" href="../assets/css/style.css">
-    <link rel="stylesheet" href="../assets/css/users.css">
+    <link rel="stylesheet" href="../assets/css/guide.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
@@ -78,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <li><a href="guides.php" class="nav-link active"><i class="fas fa-map-signs"></i> Guide</a></li>
                 <li><a href="mountains.php" class="nav-link"><i class="fas fa-mountain"></i> Gunung</a></li>
                 <li><a href="trips.php" class="nav-link"><i class="fas fa-route"></i> Trip</a></li>
-                <li><a href="bookings.php" class="nav-link"><i class="fas fa-calendar-alt"></i> Booking</a></li>
+                <li><a href="lihat_pembayaran.php" class="nav-link"><i class="fas fa-money-bill-wave"></i> Lihat Pembayaran</a></li>
                 <li><a href="feedback.php" class="nav-link"><i class="fas fa-comment-dots"></i> Feedback</a></li>
                 <li><a href="profile.php" class="nav-link"><i class="fas fa-user-cog"></i> Profil</a></li>
                 <li><a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
@@ -100,12 +102,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <form method="POST" action="" enctype="multipart/form-data">
                     <div class="form-group">
                         <label for="name">Nama Guide:</label>
-                        <input type="text" id="name" name="name" required>
+                        <input type="text" id="name" name="name" placeholder="Masukkan nama lengkap guide" required>
                     </div>
 
                     <div class="form-group">
                         <label for="rating">Rating:</label>
-                        <input type="number" id="rating" name="rating" step="0.1" min="0" max="5" required>
+                        <input type="number" id="rating" name="rating" step="0.1" min="0" max="5" placeholder="Contoh: 4.5" required>
                     </div>
 
                     <div class="form-group">
@@ -114,9 +116,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
 
                     <div class="form-group">
+                        <label for="password">Password:</label>
+                        <input type="password" id="password" name="password" placeholder="Minimal 6 karakter" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Email:</label>
+                        <input type="email" id="email" name="email" placeholder="Masukkan alamat email" required>
+                    </div>
+
+                    <div class="form-group">
                         <label for="image">Foto Guide:</label>
-                        <input type="file" id="image" name="image" accept="image/*" required>
-                        <small>Format: JPG, JPEG, PNG (Max 5MB)</small>
+                        <input type="file" id="image" name="image" accept="image/*">
+                        <small>Biarkan kosong jika tidak ingin mengubah gambar. Format: JPG, JPEG, PNG (Max 5MB)</small>
                     </div>
 
                     <div class="form-group">
@@ -126,8 +138,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </label>
                     </div>
 
-                    <div class="form-group">
-                        <button type="submit" class="btn btn-primary">Simpan Guide</button>
+                    <div class="form-group form-group-actions">
+                        <button type="submit" class="btn btn-primary">Tambah Guide</button>
                     </div>
                 </form>
             </div>

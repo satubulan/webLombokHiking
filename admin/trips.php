@@ -86,12 +86,12 @@ $trips = $result->fetch_all(MYSQLI_ASSOC);
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Daftar Trip</title>
-    <link rel="stylesheet" href="../assets/css/users.css" />
+    <title>Manajemen Trip - Admin Lombok Hiking</title>
+    <link rel="stylesheet" href="../assets/css/guide.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
 <body>
-<div class="admin-layout" style="display:flex;min-height:100vh;">
+<div class="admin-layout">
     <!-- Sidebar -->
     <aside class="admin-sidebar">
         <div class="nav-section-title">Admin Panel</div>
@@ -101,17 +101,25 @@ $trips = $result->fetch_all(MYSQLI_ASSOC);
             <li><a href="guides.php" class="nav-link"><i class="fas fa-map-signs"></i> Guide</a></li>
             <li><a href="mountains.php" class="nav-link"><i class="fas fa-mountain"></i> Gunung</a></li>
             <li><a href="trips.php" class="nav-link active"><i class="fas fa-route"></i> Trip</a></li>
-            <li><a href="bookings.php" class="nav-link"><i class="fas fa-calendar-alt"></i> Booking</a></li>
+            <li><a href="lihat_pembayaran.php" class="nav-link"><i class="fas fa-money-bill-wave"></i> Lihat Pembayaran</a></li>
             <li><a href="feedback.php" class="nav-link"><i class="fas fa-comment-dots"></i> Feedback</a></li>
             <li><a href="profile.php" class="nav-link"><i class="fas fa-user-cog"></i> Profil</a></li>
             <li><a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </aside>
 
-    <main class="admin-main" style="flex:1;padding:30px;overflow-x:auto;">
+    <main class="admin-main">
         <div class="admin-header">
             <h1>Daftar Trip</h1>
-            <a href="trip_create.php" class="btn btn-primary"><i class="fas fa-plus"></i> Tambah Trip</a>
+            <div class="header-actions">
+                <a href="trip_create.php" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Tambah Trip
+                </a>
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Cari trip...">
+                </div>
+            </div>
         </div>
 
         <?php if (isset($error)): ?>
@@ -129,7 +137,6 @@ $trips = $result->fetch_all(MYSQLI_ASSOC);
                         <th>Tanggal</th>
                         <th>Harga</th>
                         <th>Kuota</th>
-                        <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -137,28 +144,30 @@ $trips = $result->fetch_all(MYSQLI_ASSOC);
                     <?php if (count($trips) > 0): ?>
                         <?php foreach ($trips as $index => $trip): ?>
                             <tr>
-                                <td><?php echo $index + 1; ?></td>
+                                <td class="user-id">#<?php echo $index + 1; ?></td>
                                 <td><?php echo htmlspecialchars($trip['mountain_name']); ?></td>
                                 <td><?php echo htmlspecialchars($trip['guide_name']); ?></td>
                                 <td><?php echo date('d/m/Y', strtotime($trip['date'])); ?></td>
                                 <td>Rp<?php echo number_format($trip['price'], 0, ',', '.'); ?></td>
                                 <td><?php echo $trip['quota']; ?></td>
-                                <td>
-                                    <?php if ($trip['active']): ?>
-                                        <span class="status-active">Aktif</span>
-                                    <?php else: ?>
-                                        <span class="status-inactive">Nonaktif</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <a href="edit_trip.php?id=<?php echo $trip['id']; ?>" class="btn btn-edit"><i class="fas fa-edit"></i> Edit</a>
-                                    <a href="delete_trip.php?id=<?php echo $trip['id']; ?>" class="btn btn-delete" onclick="return confirm('Yakin ingin hapus trip ini?')"><i class="fas fa-trash-alt"></i> Hapus</a>
+                                <td class="action-buttons">
+                                    <a href="edit_trip.php?id=<?php echo $trip['id']; ?>" class="btn btn-edit" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="delete_trip.php?id=<?php echo $trip['id']; ?>" class="btn btn-delete" onclick="return confirm('Yakin ingin hapus trip ini?')" title="Hapus">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="8" class="text-center">Tidak ada trip terdaftar.</td>
+                            <td colspan="7" class="text-center">
+                                <div class="empty-state">
+                                    <i class="fas fa-route"></i>
+                                    <p>Tidak ada trip terdaftar.</p>
+                                </div>
+                            </td>
                         </tr>
                     <?php endif; ?>
                 </tbody>
@@ -166,5 +175,29 @@ $trips = $result->fetch_all(MYSQLI_ASSOC);
         </div>
     </main>
 </div>
+
+<script>
+document.getElementById('searchInput').addEventListener('keyup', function() {
+    let searchText = this.value.toLowerCase();
+    let table = document.querySelector('.admin-table');
+    let rows = table.getElementsByTagName('tr');
+
+    for (let i = 1; i < rows.length; i++) {
+        let row = rows[i];
+        let cells = row.getElementsByTagName('td');
+        let found = false;
+
+        for (let j = 0; j < cells.length; j++) {
+            let cell = cells[j];
+            if (cell.textContent.toLowerCase().indexOf(searchText) > -1) {
+                found = true;
+                break;
+            }
+        }
+
+        row.style.display = found ? '' : 'none';
+    }
+});
+</script>
 </body>
 </html>

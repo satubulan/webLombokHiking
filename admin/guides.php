@@ -18,8 +18,9 @@ $guides = $result->fetch_all(MYSQLI_ASSOC);
 <head>
     <meta charset="UTF-8" />
     <title>Manajemen Guide - Admin Lombok Hiking</title>
-    <link rel="stylesheet" href="../assets/css/style.css" />
-    <link rel="stylesheet" href="../assets/css/users.css" />
+    <link rel="stylesheet" href="../assets/css/guide.css" />
+
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
 <body>
@@ -33,7 +34,7 @@ $guides = $result->fetch_all(MYSQLI_ASSOC);
             <li><a href="guides.php" class="nav-link active"><i class="fas fa-map-signs"></i> Guide</a></li>
             <li><a href="mountains.php" class="nav-link"><i class="fas fa-mountain"></i> Gunung</a></li>
             <li><a href="trips.php" class="nav-link"><i class="fas fa-route"></i> Trip</a></li>
-            <li><a href="bookings.php" class="nav-link"><i class="fas fa-calendar-alt"></i> Booking</a></li>
+            <li><a href="lihat_pembayaran.php" class="nav-link"><i class="fas fa-money-bill-wave"></i> Lihat Pembayaran</a></li>
             <li><a href="feedback.php" class="nav-link"><i class="fas fa-comment-dots"></i> Feedback</a></li>
             <li><a href="profile.php" class="nav-link"><i class="fas fa-user-cog"></i> Profil</a></li>
             <li><a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
@@ -45,13 +46,13 @@ $guides = $result->fetch_all(MYSQLI_ASSOC);
         <div class="admin-header">
             <h1>Daftar Guide</h1>
             <div class="header-actions">
+                <a href="guide_create.php" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Tambah Guide
+                </a>
                 <div class="search-box">
                     <i class="fas fa-search"></i>
                     <input type="text" id="searchInput" placeholder="Cari guide...">
                 </div>
-                <a href="guide_create.php" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Tambah Guide
-                </a>
             </div>
         </div>
 
