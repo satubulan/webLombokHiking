@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <title>Edit Gunung - Admin Lombok Hiking</title>
     <link rel="stylesheet" href="../assets/css/style.css">
-    <link rel="stylesheet" href="../assets/css/users.css">
+    <link rel="stylesheet" href="../assets/css/guide.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
@@ -105,8 +105,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <li><a href="guides.php" class="nav-link"><i class="fas fa-map-signs"></i> Guide</a></li>
                 <li><a href="mountains.php" class="nav-link active"><i class="fas fa-mountain"></i> Gunung</a></li>
                 <li><a href="trips.php" class="nav-link"><i class="fas fa-route"></i> Trip</a></li>
-                <li><a href="bookings.php" class="nav-link"><i class="fas fa-calendar-alt"></i> Booking</a></li>
-                <li><a href="feedback.php" class="nav-link"><i class="fas fa-comment-dots"></i> Feedback</a></li>
                 <li><a href="profile.php" class="nav-link"><i class="fas fa-user-cog"></i> Profil</a></li>
                 <li><a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
             </ul>
@@ -116,7 +114,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <main class="admin-main">
             <div class="admin-header">
                 <h1>Edit Gunung</h1>
-                <a href="mountains.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Kembali</a>
             </div>
 
             <?php if (isset($error)): ?>
@@ -127,24 +124,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <form method="POST" action="" enctype="multipart/form-data">
                     <div class="form-group">
                         <label for="name">Nama Gunung:</label>
-                        <input type="text" id="name" name="name" value="<?php echo htmlspecialchars($mountain['name']); ?>" required>
+                        <input type="text" id="name" name="name" value="<?php echo htmlspecialchars($mountain['name']); ?>" placeholder="Masukkan nama gunung" required>
                     </div>
 
                     <div class="form-group">
                         <label for="description">Deskripsi:</label>
-                        <textarea id="description" name="description" rows="4" required><?php echo htmlspecialchars($mountain['description']); ?></textarea>
+                        <textarea id="description" name="description" rows="4" placeholder="Tulis deskripsi singkat tentang gunung" required><?php echo htmlspecialchars($mountain['description']); ?></textarea>
                     </div>
 
                     <div class="form-group">
                         <label for="height">Tinggi (meter):</label>
-                        <input type="number" id="height" name="height" value="<?php echo $mountain['height']; ?>" min="0" required>
+                        <input type="number" id="height" name="height" value="<?php echo $mountain['height']; ?>" min="0" placeholder="Contoh: 3726" required>
                     </div>
 
                     <div class="form-group">
                         <label for="image">Foto Gunung:</label>
                         <?php if (!empty($mountain['image_url'])): ?>
-                            <div style="margin-bottom: 10px;">
-                                <img src="../assets/images/<?php echo htmlspecialchars($mountain['image_url']); ?>" alt="Gambar Gunung" style="width:200px; border-radius:4px;">
+                            <div class="current-image">
+                                <img src="../assets/images/<?php echo htmlspecialchars($mountain['image_url']); ?>" alt="Gambar Gunung" style="max-width:200px; border-radius:4px; margin-bottom:10px;">
                             </div>
                         <?php endif; ?>
                         <input type="file" id="image" name="image" accept="image/*">
@@ -152,7 +149,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
 
                     <div class="form-group">
+                        <label>
+                            <input type="checkbox" name="active" <?php echo ($mountain['active'] ?? 1) ? 'checked' : ''; ?>>
+                            Status Aktif
+                        </label>
+                    </div>
+
+                    <div class="form-group form-group-actions">
                         <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+                        <a href="mountains.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Kembali</a>
                     </div>
                 </form>
             </div>

@@ -49,14 +49,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if($imageFileType == "jpg" || $imageFileType == "png" || $imageFileType == "jpeg") {
                     if (move_uploaded_file($_FILES["image"]["tmp_name"], $target_file)) {
                         // Hapus gambar lama jika ada
-                        if (!empty($guide['image_url'])) {
-                            $old_image_path = "../assets/images/" . $guide['image_url'];
+                        if (!empty($guide['avatar'])) {
+                            $old_image_path = "../assets/images/" . $guide['avatar'];
                             if (file_exists($old_image_path)) {
                                 unlink($old_image_path);
                             }
                         }
                         
-                        $image_url = "guides/" . $image_name;
+                        $avatar = "guides/" . $avatar;
                         $sql = "UPDATE guides SET name = '$name', rating = $rating, languages = '$languages', image_url = '$image_url', active = $active WHERE id = $id";
                     } else {
                         $error = "Maaf, terjadi kesalahan saat mengupload file.";
@@ -92,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <title>Edit Guide - Admin Lombok Hiking</title>
     <link rel="stylesheet" href="../assets/css/style.css">
-    <link rel="stylesheet" href="../assets/css/users.css">
+    <link rel="stylesheet" href="../assets/css/guide.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
@@ -106,8 +106,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <li><a href="guides.php" class="nav-link active"><i class="fas fa-map-signs"></i> Guide</a></li>
                 <li><a href="mountains.php" class="nav-link"><i class="fas fa-mountain"></i> Gunung</a></li>
                 <li><a href="trips.php" class="nav-link"><i class="fas fa-route"></i> Trip</a></li>
-                <li><a href="bookings.php" class="nav-link"><i class="fas fa-calendar-alt"></i> Booking</a></li>
-                <li><a href="feedback.php" class="nav-link"><i class="fas fa-comment-dots"></i> Feedback</a></li>
                 <li><a href="profile.php" class="nav-link"><i class="fas fa-user-cog"></i> Profil</a></li>
                 <li><a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
             </ul>

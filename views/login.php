@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin: 0;
             padding: 0;
             font-family: 'Segoe UI', sans-serif;
-            background: linear-gradient(to right, #134E5E, #71B280);
+            background: #ffffff;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         .auth-header h2 {
             margin: 0;
-            color: #134E5E;
+            color: #2e8b57;
             text-align: center;
         }
         .auth-header p {
@@ -121,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .btn {
             width: 100%;
             padding: 12px;
-            background-color: #134E5E;
+            background-color: #4CAF50;
             color: white;
             font-size: 16px;
             font-weight: bold;
@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             text-align: center;
         }
         a {
-            color: #134E5E;
+            color: #2e8b57;
             text-decoration: none;
         }
     </style>
@@ -148,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="auth-container">
         <div class="auth-header">
             <h2>Login Akun</h2>
-            <p>Masuk untuk melanjutkan ke dashboard</p>
+
         </div>
 
         <?php if (!empty($error)) : ?>
@@ -166,9 +166,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="password" name="password" id="password" required placeholder="Masukkan password">
                 <span class="toggle-password" onclick="togglePassword(this)">
                     <!-- Eye open (default) -->
-                    <svg xmlns="http://www.w3.org/2000/svg" id="eyeIcon" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-                        <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8z"/>
-                        <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/>
+                    <svg xmlns="http://www.w3.org/2000/svg" id="eyeIcon" width="20" height="20" viewBox="0 0 16 16">
+                        <path fill="#777" d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/><path fill="#777" d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
                     </svg>
                 </span>
             </div>
@@ -185,13 +184,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function togglePassword(el) {
             const passwordField = document.getElementById('password');
             const icon = el.querySelector('svg');
-            const isPassword = passwordField.type === 'password';
-            passwordField.type = isPassword ? 'text' : 'password';
-            icon.innerHTML = isPassword
-                ? `<path d=\"M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8z\"/>
-                   <path d=\"M3.707 3.707a1 1 0 0 1 1.414 0L15 13.586l-1.414 1.414L3.707 5.121a1 1 0 0 1 0-1.414z\"/>`
-                : `<path d=\"M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8z\"/>
-                   <path d=\"M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z\"/>`;
+            const isPasswordHidden = passwordField.type === 'password'; // True jika password sedang disembunyikan
+
+            passwordField.type = isPasswordHidden ? 'text' : 'password'; // Toggle tipe password
+
+            // Update ikon berdasarkan tipe password baru
+            if (passwordField.type === 'password') { // Jika tipe baru adalah password (tersembunyi), tampilkan ikon mata terbuka
+                icon.innerHTML = `<path fill=\"#777\" d=\"M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z\"/><path fill=\"#777\" d=\"M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z\"/>`;
+            } else { // Jika tipe baru adalah text (terlihat), tampilkan ikon mata dengan garis miring (eye-slash)
+                icon.innerHTML = `<path fill=\"#777\" d=\"M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z\"/><line x1=\"2\" y1=\"14\" x2=\"14\" y2=\"2\" stroke=\"#777\" stroke-width=\"1.5\" stroke-linecap=\"round\"/>`;
+            }
         }
     </script>
 </body>

@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once '../config.php';
+require_once 'config.php';
 
 $trips = $conn->query("SELECT * FROM trips ORDER BY id DESC")->fetch_all(MYSQLI_ASSOC);
 ?>
