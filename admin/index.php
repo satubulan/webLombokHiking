@@ -15,7 +15,7 @@ $guides = $conn->query("SELECT COUNT(*) AS total FROM guides")->fetch_assoc()['t
 $mountains = $conn->query("SELECT COUNT(*) AS total FROM mountains")->fetch_assoc()['total'];
 $trips = $conn->query("SELECT COUNT(*) AS total FROM trips")->fetch_assoc()['total'];
 $bookings = $conn->query("SELECT COUNT(*) AS total FROM bookings")->fetch_assoc()['total'];
-$feedback = $conn->query("SELECT COUNT(*) AS total FROM feedback")->fetch_assoc()['total'];
+$feedback = $conn->query("SELECT COUNT(*) AS total FROM feedbacks")->fetch_assoc()['total'];
 ?>
 
 <!DOCTYPE html>

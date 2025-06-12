@@ -107,11 +107,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <nav>
                 <a href="dashboard.php"><i class="fas fa-chart-line"></i> Beranda</a>
                 <a href="profile.php" class="active"><i class="fas fa-user-edit"></i> Profile</a>
-                <a href="trips.php"><i class="fas fa-route"></i> Trip</a>
-                <a href="bookings.php"><i class="fas fa-calendar-check"></i> Pesanan Saya</a>
+                <a href="trips.php"><i class="fas fa-route"></i> Trip Saya</a>
+                <a href="bookings.php"><i class="fas fa-calendar-check"></i> Pesanan</a>
                 <a href="schedule.php"><i class="fas fa-calendar-alt"></i> Jadwal</a>
-                <a href="notifications.php"><i class="fas fa-bell"></i> Notifikasi</a>
-                <a href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                <a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
             </nav>
         </aside>
 
