@@ -31,8 +31,6 @@ $users = $result->fetch_all(MYSQLI_ASSOC);
             <li><a href="guides.php" class="nav-link"><i class="fas fa-map-signs"></i> Guide</a></li>
             <li><a href="mountains.php" class="nav-link"><i class="fas fa-mountain"></i> Gunung</a></li>
             <li><a href="trips.php" class="nav-link"><i class="fas fa-route"></i> Trip</a></li>
-            <li><a href="lihat_pembayaran.php" class="nav-link"><i class="fas fa-money-bill-wave"></i> Lihat Pembayaran</a></li>
-            <li><a href="feedback.php" class="nav-link"><i class="fas fa-comment-dots"></i> Feedback</a></li>
             <li><a href="profile.php" class="nav-link"><i class="fas fa-user-cog"></i> Profil</a></li>
             <li><a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>

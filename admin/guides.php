@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
 }
 
 // Ambil semua guide dengan urutan ascending
-$result = $conn->query("SELECT * FROM guides ORDER BY id ASC");
+$result = $conn->query("SELECT g.*, u.phone FROM guides g JOIN users u ON g.user_id = u.id ORDER BY g.id ASC");
 $guides = $result->fetch_all(MYSQLI_ASSOC);
 ?>
 
@@ -19,8 +19,6 @@ $guides = $result->fetch_all(MYSQLI_ASSOC);
     <meta charset="UTF-8" />
     <title>Manajemen Guide - Admin Lombok Hiking</title>
     <link rel="stylesheet" href="../assets/css/guide.css" />
-
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
 <body>
@@ -34,8 +32,6 @@ $guides = $result->fetch_all(MYSQLI_ASSOC);
             <li><a href="guides.php" class="nav-link active"><i class="fas fa-map-signs"></i> Guide</a></li>
             <li><a href="mountains.php" class="nav-link"><i class="fas fa-mountain"></i> Gunung</a></li>
             <li><a href="trips.php" class="nav-link"><i class="fas fa-route"></i> Trip</a></li>
-            <li><a href="lihat_pembayaran.php" class="nav-link"><i class="fas fa-money-bill-wave"></i> Lihat Pembayaran</a></li>
-            <li><a href="feedback.php" class="nav-link"><i class="fas fa-comment-dots"></i> Feedback</a></li>
             <li><a href="profile.php" class="nav-link"><i class="fas fa-user-cog"></i> Profil</a></li>
             <li><a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
@@ -66,6 +62,7 @@ $guides = $result->fetch_all(MYSQLI_ASSOC);
                         <th>Rating</th>
                         <th>Bahasa</th>
                         <th>Status</th>
+                        <th>Telepon</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -110,6 +107,7 @@ $guides = $result->fetch_all(MYSQLI_ASSOC);
                                         </span>
                                     <?php endif; ?>
                                 </td>
+                                <td><?php echo htmlspecialchars($guide['phone']); ?></td>
                                 <td class="action-buttons">
                                     <a href="edit_guide.php?id=<?php echo $guide['id']; ?>" class="btn btn-edit" title="Edit">
                                         <i class="fas fa-edit"></i>
@@ -122,7 +120,7 @@ $guides = $result->fetch_all(MYSQLI_ASSOC);
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="7" class="text-center">
+                            <td colspan="8" class="text-center">
                                 <div class="empty-state">
                                     <i class="fas fa-map-signs"></i>
                                     <p>Tidak ada guide terdaftar.</p>
