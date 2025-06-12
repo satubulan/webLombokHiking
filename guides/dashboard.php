@@ -2,36 +2,75 @@
 session_start();
 require_once '../config.php';
 
-// Redirect kalau belum login atau bukan guide
+// Check if user is logged in and is a guide
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'guide') {
     header('Location: ../views/login.php');
     exit();
 }
 
-$guideId = $_SESSION['user_id'];
-$guideName = $_SESSION['user_name'];
+$user_id = $_SESSION['user_id'];
+$userName = $_SESSION['user_name'];
 
-// Ambil statistik trip dan booking
-// Total trip yang dipandu
-$stmtTrip = $conn->prepare("SELECT COUNT(*) AS total_trip FROM trips WHERE guide_id = ?");
-$stmtTrip->bind_param("i", $guideId);
-$stmtTrip->execute();
-$tripResult = $stmtTrip->get_result()->fetch_assoc();
-$totalTrip = $tripResult['total_trip'];
-// Total peserta (booking)
-$stmtPeserta = $conn->prepare("SELECT COUNT(*) AS total_peserta FROM bookings b JOIN trips t ON b.trip_id = t.id WHERE t.guide_id = ?");
-$stmtPeserta->bind_param("i", $guideId);
-$stmtPeserta->execute();
-$pesertaResult = $stmtPeserta->get_result()->fetch_assoc();
-$totalPeserta = $pesertaResult['total_peserta'];
+// Get guide info
+$guide_query = $conn->prepare("SELECT * FROM guides WHERE user_id = ?");
+$guide_query->bind_param("s", $user_id);
+$guide_query->execute();
+$guide_result = $guide_query->get_result();
+$guide_info = $guide_result->fetch_assoc();
 
-// Total pendapatan (simulasi dari harga trip * jumlah booking confirmed)
-$stmtIncome = $conn->prepare("SELECT SUM(t.price) AS total_income FROM bookings b JOIN trips t ON b.trip_id = t.id WHERE t.guide_id = ? AND b.status = 'confirmed'");
-$stmtIncome->bind_param("i", $guideId);
-$stmtIncome->execute();
-$incomeResult = $stmtIncome->get_result()->fetch_assoc();
-$totalIncome = $incomeResult['total_income'] ?? 0;
+// Get guide statistics
+$guide_id = $guide_info['id'] ?? null;
 
+// Total trips that this guide leads
+$total_trips = $conn->prepare("SELECT COUNT(*) AS total FROM trips WHERE guide_id = ?");
+$total_trips->bind_param("s", $guide_id);
+$total_trips->execute();
+$trips_count = $total_trips->get_result()->fetch_assoc()['total'];
+
+// Total bookings for this guide's trips
+$total_bookings = $conn->prepare("
+    SELECT COUNT(*) AS total 
+    FROM bookings b 
+    JOIN trips t ON b.trip_id = t.id 
+    WHERE t.guide_id = ?
+");
+$total_bookings->bind_param("s", $guide_id);
+$total_bookings->execute();
+$bookings_count = $total_bookings->get_result()->fetch_assoc()['total'];
+
+// Total earnings (confirmed bookings only)
+$total_earnings = $conn->prepare("
+    SELECT COALESCE(SUM(b.total_price), 0) AS total 
+    FROM bookings b 
+    JOIN trips t ON b.trip_id = t.id 
+    WHERE t.guide_id = ? AND b.status = 'confirmed'
+");
+$total_earnings->bind_param("s", $guide_id);
+$total_earnings->execute();
+$earnings = $total_earnings->get_result()->fetch_assoc()['total'];
+
+// Active trips (future trips)
+$active_trips = $conn->prepare("
+    SELECT COUNT(*) AS total 
+    FROM trips 
+    WHERE guide_id = ? AND end_date >= CURDATE()
+");
+$active_trips->bind_param("s", $guide_id);
+$active_trips->execute();
+$active_trips_count = $active_trips->get_result()->fetch_assoc()['total'];
+
+// Pending bookings
+$pending_bookings = $conn->prepare("
+    SELECT COUNT(*) AS total 
+    FROM bookings b 
+    JOIN trips t ON b.trip_id = t.id 
+    WHERE t.guide_id = ? AND b.status = 'pending'
+");
+$pending_bookings->bind_param("s", $guide_id);
+$pending_bookings->execute();
+$pending_count = $pending_bookings->get_result()->fetch_assoc()['total'];
+
+$guide_rating = $guide_info['rating'] ?? 0;
 ?>
 
 <!DOCTYPE html>
@@ -40,414 +79,348 @@ $totalIncome = $incomeResult['total_income'] ?? 0;
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Guide - Lombok Hiking</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/index.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        /* Additional styles for guide dashboard */
+        .guide-welcome {
+            background: linear-gradient(135deg, #2e8b57 0%, #3cb371 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(46, 139, 87, 0.3);
         }
         
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg,rgb(67, 145, 115),rgb(40, 154, 92) 100%);
-            min-height: 100vh;
-            color: #2d3748;
-        }
-        
-        .hero-bg {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100vh;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 500"><path d="M0,300 Q250,200 500,300 T1000,300 L1000,500 L0,500 Z" fill="%23ffffff10"/><path d="M0,350 Q250,250 500,350 T1000,350 L1000,500 L0,500 Z" fill="%23ffffff05"/></svg>') no-repeat bottom;
-            background-size: cover;
-            z-index: -1;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            border-radius: 24px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            animation: slideUp 0.8s ease-out;
-        }
-        
-        .welcome-text {
+        .guide-info {
             display: flex;
             align-items: center;
-            gap: 1rem;
-            margin-bottom: 1rem;
+            gap: 20px;
+            margin-bottom: 20px;
         }
         
-        .mountain-icon {
-            font-size: 2.5rem;
-            animation: bounce 2s infinite;
+        .guide-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
         }
         
-        .header h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            background: linear-gradient(135deg,rgb(67, 145, 115),rgb(40, 154, 92));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        .guide-details h2 {
+            margin: 0 0 5px 0;
+            font-size: 1.8rem;
         }
         
-        .header p {
-            font-size: 1.1rem;
-            color: #666;
-            margin-top: 0.5rem;
+        .guide-rating {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
         }
         
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+        .rating-stars {
+            color: #ffd700;
         }
         
-        .stat-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            border-radius: 20px;
-            padding: 2rem;
-            text-align: center;
+        .recent-activity {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            margin-top: 30px;
+        }
+        
+        .activity-item {
+            padding: 15px;
+            border-left: 4px solid #2e8b57;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .stat-card.guide-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border: 1px solid #e9ecef;
             position: relative;
             overflow: hidden;
-            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-            animation: slideUp 0.8s ease-out;
         }
         
-        .stat-card:nth-child(1) { animation-delay: 0.1s; }
-        .stat-card:nth-child(2) { animation-delay: 0.2s; }
-        .stat-card:nth-child(3) { animation-delay: 0.3s; }
-        
-        .stat-card:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
-        }
-        
-        .stat-card::before {
+        .stat-card.guide-card::before {
             content: '';
             position: absolute;
             top: 0;
-            left: -100%;
-            width: 100%;
+            left: 0;
+            width: 4px;
             height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-            transition: left 0.7s;
+            background: linear-gradient(135deg, #2e8b57, #3cb371);
         }
         
-        .stat-card:hover::before {
-            left: 100%;
-        }
-        
-        .stat-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            opacity: 0.8;
-        }
-        
-        .stat-card h3 {
-            font-size: 1.1rem;
-            color: #666;
-            margin-bottom: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            font-weight: 600;
-        }
-        
-        .stat-value {
-            font-size: 2.5rem;
-            font-weight: 800;
-            background: linear-gradient(135deg,rgb(67, 145, 115),rgb(40, 154, 92));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 0.5rem;
-        }
-        
-        .stat-change {
-            font-size: 0.9rem;
-            color: #10b981;
-            font-weight: 600;
-        }
-        
-        .actions-section {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            border-radius: 24px;
-            padding: 2rem;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            animation: slideUp 0.8s ease-out 0.4s both;
-        }
-        
-        .actions-section h2 {
-            font-size: 1.5rem;
-            margin-bottom: 1.5rem;
-            color: #2d3748;
-            font-weight: 700;
-        }
-        
-        .actions-grid {
+        .quick-actions {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
+            gap: 20px;
+            margin-top: 30px;
         }
         
-        .btn {
-            display: inline-flex;
+        .action-btn {
+            display: flex;
             align-items: center;
-            gap: 0.5rem;
-            padding: 1rem 1.5rem;
-            border: none;
-            border-radius: 16px;
-            font-weight: 600;
-            text-decoration: none;
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            cursor: pointer;
-            font-size: 0.95rem;
-            position: relative;
-            overflow: hidden;
-            text-align: center;
             justify-content: center;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            gap: 10px;
+            padding: 20px;
+            background: linear-gradient(135deg, #2e8b57, #3cb371);
             color: white;
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(46, 139, 87, 0.3);
         }
         
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.9);
-            color: #2d3748;
-            border: 2px solid rgba(102, 126, 234, 0.2);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-        }
-        
-        .btn-danger {
-            background: linear-gradient(135deg, #f56565, #e53e3e);
-            color: white;
-            box-shadow: 0 8px 25px rgba(245, 101, 101, 0.4);
-        }
-        
-        .btn:hover {
+        .action-btn:hover {
             transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(46, 139, 87, 0.4);
+            color: white;
         }
-        
-        .btn-primary:hover {
-            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.6);
-        }
-        
-        .btn-secondary:hover {
-            background: rgba(102, 126, 234, 0.1);
-            border-color: rgba(102, 126, 234, 0.4);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
-        }
-        
-        .btn-danger:hover {
-            box-shadow: 0 15px 35px rgba(245, 101, 101, 0.6);
-        }
-        
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        @keyframes bounce {
-            0%, 20%, 50%, 80%, 100% {
-                transform: translateY(0);
-            }
-            40% {
-                transform: translateY(-10px);
-            }
-            60% {
-                transform: translateY(-5px);
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
+
+        /* Mobile Responsive */
+        @media (max-width: 767px) {
+            .admin-container {
+                flex-direction: column;
             }
             
-            .header h1 {
-                font-size: 2rem;
+            .sidebar {
+                width: 100%;
+                height: auto;
+                order: 2;
+            }
+            
+            .main {
+                order: 1;
+                padding: 15px;
+            }
+            
+            .guide-info {
+                flex-direction: column;
+                text-align: center;
             }
             
             .stats-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 15px;
             }
             
-            .actions-grid {
+            .quick-actions {
                 grid-template-columns: 1fr;
+                gap: 15px;
             }
         }
         
-        .flash-message {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
-            padding: 1rem;
-            border-radius: 12px;
-            margin-bottom: 1rem;
-            animation: slideUp 0.5s ease-out;
+        /* Tablet */
+        @media (min-width: 768px) and (max-width: 1023px) {
+            .sidebar {
+                width: 200px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            }
+        }
+        
+        /* Large Desktop */
+        @media (min-width: 1440px) {
+            .container {
+                max-width: 1400px;
+                margin: 0 auto;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="hero-bg"></div>
-    
-    <div class="container">
-        <!-- Flash Message (if any) -->
-        <!-- You can add PHP here to show flash messages -->
-        
-        <div class="header">
-            <div class="welcome-text">
-                <span class="mountain-icon">🏔️</span>
-                <div>
-                    <h1>Selamat datang, Guide <?php echo htmlspecialchars($guideName); ?>!</h1>
-                    <p>Siap untuk petualangan hiking hari ini? Mari kelola trip Anda dengan mudah.</p>
+    <div class="admin-container">
+        <!-- Responsive Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">Guide Panel</div>
+            <nav>
+                <a href="dashboard.php" class="active"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="profile.php"><i class="fas fa-user-edit"></i> Profile</a>
+                <a href="trips.php"><i class="fas fa-route"></i> Trip Saya</a>
+                <a href="bookings.php"><i class="fas fa-calendar-check"></i> Pesanan</a>
+                <a href="schedule.php"><i class="fas fa-calendar-alt"></i> Jadwal</a>
+                <a href="notifications.php"><i class="fas fa-bell"></i> Notifikasi</a>
+                <a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Welcome Section -->
+            <div class="guide-welcome">
+                <div class="guide-info">
+                    <div class="guide-avatar">
+                        <i class="fas fa-user-tie"></i>
+                    </div>
+                    <div class="guide-details">
+                        <h2>Selamat Datang, <?php echo htmlspecialchars($userName); ?>!</h2>
+                        <p>Guide Pendakian Lombok Hiking</p>
+                        <?php if ($guide_info): ?>
+                            <div class="guide-rating">
+                                <span class="rating-stars">
+                                    <?php 
+                                    $rating = $guide_rating;
+                                    for ($i = 1; $i <= 5; $i++) {
+                                        echo $i <= $rating ? '<i class="fas fa-star"></i>' : '<i class="far fa-star"></i>';
+                                    }
+                                    ?>
+                                </span>
+                                <span><?php echo number_format($guide_rating, 1); ?>/5.0</span>
+                                <span class="experience">• <?php echo $guide_info['experience'] ?? 0; ?> tahun pengalaman</span>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
-            </div>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">🥾</div>
-                <h3>Total Trip</h3>
-                <div class="stat-value"><?= $totalTrip; ?></div>
-                <div class="stat-change">+2 bulan ini</div>
+                <p>Kelola trip pendakian Anda dan berikan pengalaman terbaik untuk para pendaki!</p>
             </div>
 
-            <div class="stat-card">
-                <div class="stat-icon">👥</div>
-                <h3>Total Peserta</h3>
-                <div class="stat-value"><?= $totalPeserta; ?></div>
-                <div class="stat-change">+8 bulan ini</div>
-            </div>
+            <!-- Statistics Grid -->
+            <section class="stats-grid">
+                <div class="stat-card guide-card">
+                    <i class="fas fa-route"></i>
+                    <div>
+                        <h3>Total Trip</h3>
+                        <p><?= $trips_count ?></p>
+                    </div>
+                </div>
 
-            <div class="stat-card">
-                <div class="stat-icon">💰</div>
-                <h3>Total Pendapatan</h3>
-                <div class="stat-value"><?= number_format($totalIncome / 1000000, 1); ?>M</div>
-                <div class="stat-change">+2.3M bulan ini</div>
-            </div>
-        </div>
+                <div class="stat-card guide-card">
+                    <i class="fas fa-calendar-check"></i>
+                    <div>
+                        <h3>Total Peserta</h3>
+                        <p><?= $bookings_count ?></p>
+                    </div>
+                </div>
 
-        <div class="actions-section">
-            <h2>🎯 Menu Utama</h2>
-            <div class="actions-grid">
-                <a href="manage-booking.php" class="btn btn-primary">
-                    📋 Kelola Booking
+                <div class="stat-card guide-card">
+                    <i class="fas fa-money-bill-wave"></i>
+                    <div>
+                        <h3>Pendapatan</h3>
+                        <p>Rp <?= number_format($earnings, 0, ',', '.') ?></p>
+                    </div>
+                </div>
+
+                <div class="stat-card guide-card">
+                    <i class="fas fa-play-circle"></i>
+                    <div>
+                        <h3>Trip Aktif</h3>
+                        <p><?= $active_trips_count ?></p>
+                    </div>
+                </div>
+
+                <div class="stat-card guide-card">
+                    <i class="fas fa-star"></i>
+                    <div>
+                        <h3>Rating</h3>
+                        <p><?= number_format($guide_rating, 1) ?>/5.0</p>
+                    </div>
+                </div>
+
+                <div class="stat-card guide-card">
+                    <i class="fas fa-clock"></i>
+                    <div>
+                        <h3>Pesanan Pending</h3>
+                        <p><?= $pending_count ?></p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quick Actions -->
+            <section class="quick-actions">
+                <a href="profile.php" class="action-btn">
+                    <i class="fas fa-user-edit"></i>
+                    <span>Update Profile</span>
                 </a>
-                <a href="profile.php" class="btn btn-secondary">
-                    ✏️ Edit Profil
+                <a href="trips.php" class="action-btn">
+                    <i class="fas fa-route"></i>
+                    <span>Kelola Trip</span>
                 </a>
-                <a href="chat-room.php" class="btn btn-secondary">
-                    💬 Chat Room
+                <a href="schedule.php" class="action-btn">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Lihat Jadwal</span>
                 </a>
-                <a href="my-trips.php" class="btn btn-secondary">
-                    🗺️ Trip Saya
+                <a href="notifications.php" class="action-btn">
+                    <i class="fas fa-bell"></i>
+                    <span>Notifikasi</span>
                 </a>
-                <a href="Trip-stats-guide.php" class="btn btn-secondary">
-                    📈 Statistik Trip
-                </a>
-                <a href="../logout.php" class="btn btn-danger">
-                    🚪 Logout
-                </a>
+            </section>
+
+            <!-- Recent Activity -->
+            <?php
+            // Get recent bookings for this guide
+            $recent_bookings = $conn->prepare("
+                SELECT b.*, t.title as trip_title, u.name as user_name, t.start_date
+                FROM bookings b 
+                JOIN trips t ON b.trip_id = t.id 
+                JOIN users u ON b.user_id = u.id 
+                WHERE t.guide_id = ? 
+                ORDER BY b.booking_date DESC 
+                LIMIT 5
+            ");
+            $recent_bookings->bind_param("s", $guide_id);
+            $recent_bookings->execute();
+            $recent_result = $recent_bookings->get_result();
+            ?>
+
+            <div class="recent-activity">
+                <h3><i class="fas fa-history"></i> Aktivitas Terbaru</h3>
+                
+                <?php if ($recent_result->num_rows > 0): ?>
+                    <?php while ($booking = $recent_result->fetch_assoc()): ?>
+                        <div class="activity-item">
+                            <h4><?= htmlspecialchars($booking['trip_title']) ?></h4>
+                            <p><strong>Peserta:</strong> <?= htmlspecialchars($booking['user_name']) ?></p>
+                            <p><strong>Tanggal Trip:</strong> <?= date('d M Y', strtotime($booking['start_date'])) ?></p>
+                            <p><strong>Status:</strong> 
+                                <span class="status-<?= $booking['status'] ?>">
+                                    <?= ucfirst($booking['status']) ?>
+                                </span>
+                            </p>
+                        </div>
+                    <?php endwhile; ?>
+                <?php else: ?>
+                    <div class="activity-item">
+                        <p style="text-align: center; color: #666; font-style: italic;">
+                            <i class="fas fa-info-circle"></i> Belum ada aktivitas terbaru
+                        </p>
+                    </div>
+                <?php endif; ?>
             </div>
-        </div>
+        </main>
     </div>
 
+    <script src="../assets/js/main.js"></script>
     <script>
-        // Add some interactive elements
+        // Mobile menu toggle functionality
         document.addEventListener('DOMContentLoaded', function() {
-            // Animate numbers on load
-            const statValues = document.querySelectorAll('.stat-value');
-            statValues.forEach(stat => {
-                const finalValue = stat.textContent;
-                let currentValue = 0;
-                const increment = finalValue.includes('M') ? 0.1 : 1;
-                const duration = 1500;
-                const stepTime = duration / (parseFloat(finalValue) || 1);
-                
-                const timer = setInterval(() => {
-                    currentValue += increment;
-                    if (finalValue.includes('M') && currentValue >= parseFloat(finalValue)) {
-                        stat.textContent = finalValue;
-                        clearInterval(timer);
-                    } else if (!finalValue.includes('M') && currentValue >= parseInt(finalValue)) {
-                        stat.textContent = finalValue;
-                        clearInterval(timer);
-                    } else {
-                        stat.textContent = finalValue.includes('M') ? 
-                            currentValue.toFixed(1) + 'M' : 
-                            Math.floor(currentValue);
-                    }
-                }, stepTime);
-            });
+            const sidebar = document.querySelector('.sidebar');
+            const main = document.querySelector('.main');
             
-            // Add ripple effect to buttons
-            document.querySelectorAll('.btn').forEach(button => {
-                button.addEventListener('click', function(e) {
-                    const ripple = document.createElement('span');
-                    const rect = this.getBoundingClientRect();
-                    const size = Math.max(rect.width, rect.height);
-                    const x = e.clientX - rect.left - size / 2;
-                    const y = e.clientY - rect.top - size / 2;
-                    
-                    ripple.style.cssText = `
-                        position: absolute;
-                        border-radius: 50%;
-                        background: rgba(255,255,255,0.6);
-                        transform: scale(0);
-                        animation: ripple 0.6s linear;
-                        left: ${x}px;
-                        top: ${y}px;
-                        width: ${size}px;
-                        height: ${size}px;
-                        pointer-events: none;
-                    `;
-                    
-                    this.appendChild(ripple);
-                    setTimeout(() => ripple.remove(), 600);
-                });
-            });
-        });
-        
-        // Add CSS for ripple animation
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes ripple {
-                to {
-                    transform: scale(4);
-                    opacity: 0;
-                }
+            // Add mobile menu toggle if needed
+            if (window.innerWidth <= 767) {
+                // Mobile-specific interactions can be added here
+                console.log('Mobile view detected');
             }
-        `;
-        document.head.appendChild(style);
+            
+            // Update stats periodically (optional)
+            setInterval(function() {
+                // Could add AJAX calls to update stats in real-time
+            }, 300000); // Every 5 minutes
+        });
     </script>
 </body>
 </html>
+
