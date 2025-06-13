@@ -125,7 +125,7 @@ $trips = $conn->query("SELECT * FROM trips ORDER BY id DESC")->fetch_all(MYSQLI_
     <section class="trips">
         <h2>Daftar Trip</h2>
         <div class="grid-3">
-            <?php foreach ($trips as $trip): ?>
+                <?php foreach ($trips as $trip): ?>
                 <div class="trip-card">
                     <div class="trip-content">
                         <h3><?php echo htmlspecialchars($trip['title']); ?></h3>
@@ -154,4 +154,4 @@ $trips = $conn->query("SELECT * FROM trips ORDER BY id DESC")->fetch_all(MYSQLI_
 
 <script src="assets/js/main.js"></script>
 </body>
-</html> 
+</html>

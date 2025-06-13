@@ -4,10 +4,10 @@ USE lombok_hiking;
 -- Table for users
 DROP TABLE IF EXISTS users;
 CREATE TABLE users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+        id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
+        password VARCHAR(255) NOT NULL,
     role ENUM('user', 'admin', 'guide') DEFAULT 'user',
     profile_picture VARCHAR(255) DEFAULT 'assets/images/users/default.jpg',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -20,8 +20,8 @@ CREATE TABLE mountains (
     name VARCHAR(255) NOT NULL,
     height INT NOT NULL,
     image_url VARCHAR(255) DEFAULT 'assets/images/mountains/default.jpg',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 
 -- Table for guides
 DROP TABLE IF EXISTS guides;
