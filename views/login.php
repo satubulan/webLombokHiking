@@ -11,7 +11,7 @@ if (isset($_SESSION['user_id'])) {
     } elseif ($_SESSION['user_role'] === 'guide') {
         header('Location: ../guides/dashboard.php');
     } else {
-        header('Location: ../userbiasa/index.php');
+        header('Location: ../userbiasa/dashboard.php');
     }
     exit();
 }
@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } elseif ($user['role'] === 'guide') {
                     header('Location: ../guides/dashboard.php');
                 } else {
-                    header('Location: ../userbiasa/index.php');
+                    header('Location: ../userbiasa/dashboard.php');
                 }
                 exit();
             } else {

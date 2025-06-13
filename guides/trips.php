@@ -1,3 +1,4 @@
+
 <?php
 session_start();
 require_once '../config.php';
@@ -67,6 +68,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $message = "Status trip berhasil diperbarui!";
                 } else {
                     $error = "Gagal memperbarui status trip.";
+                }
+                break;
+
+            case 'delete_trip':
+                $trip_id = $_POST['trip_id'];
+                
+                // Check if there are any bookings for this trip
+                $check_bookings = $conn->prepare("SELECT COUNT(*) as booking_count FROM bookings WHERE trip_id = ?");
+                $check_bookings->bind_param("s", $trip_id);
+                $check_bookings->execute();
+                $booking_result = $check_bookings->get_result()->fetch_assoc();
+                
+                if ($booking_result['booking_count'] > 0) {
+                    $error = "Tidak dapat menghapus trip yang sudah memiliki pesanan!";
+                } else {
+                    $delete_trip = $conn->prepare("DELETE FROM trips WHERE id = ? AND guide_id = ?");
+                    $delete_trip->bind_param("ss", $trip_id, $guide_id);
+                    
+                    if ($delete_trip->execute()) {
+                        $message = "Trip berhasil dihapus!";
+                    } else {
+                        $error = "Gagal menghapus trip.";
+                    }
                 }
                 break;
         }
@@ -293,7 +317,7 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
             gap: 6px;
             flex: 1;
             justify-content: center;
-            min-width: 80px;
+            min-width: 70px;
         }
         
         .btn-primary-action {
@@ -443,6 +467,55 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
             border: 1px solid #f5c6cb;
         }
         
+        /* Delete Confirmation Modal */
+        .delete-modal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+        }
+        
+        .delete-modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 450px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .delete-icon {
+            font-size: 4rem;
+            color: #dc3545;
+            margin-bottom: 20px;
+        }
+        
+        .delete-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        
+        .delete-text {
+            color: #6c757d;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+        
+        .delete-actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+        
         /* Responsive Design */
         @media (max-width: 767px) {
             .trips-header {
@@ -531,7 +604,6 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
                 <a href="trips.php" class="active"><i class="fas fa-route"></i> Trip Saya</a>
                 <a href="bookings.php"><i class="fas fa-calendar-check"></i> Pesanan</a>
                 <a href="schedule.php"><i class="fas fa-calendar-alt"></i> Jadwal</a>
-                <a href="notifications.php"><i class="fas fa-bell"></i> Notifikasi</a>
                 <a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
             </nav>
         </aside>
@@ -575,7 +647,7 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
                     ?>
                         <div class="trip-card">
                             <div class="trip-image">
-                                <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/9c578af0-d9da-4311-8700-2accfb95d5cf.png?php echo urlencode($trip['mountain_name']); ?>" 
+                                <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/515966f9-d134-4063-9c40-78312c6951c2.png?php echo urlencode($trip['mountain_name']); ?>" 
                                      alt="Beautiful mountain landscape of <?php echo htmlspecialchars($trip['mountain_name']); ?> with hiking trails and scenic views perfect for guided trekking adventures">
                                 <div class="trip-status status-<?php echo $status; ?>">
                                     <?php 
@@ -630,17 +702,21 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
                                 </div>
                                 
                                 <div class="trip-actions">
-                                    <a href="#" class="action-btn btn-primary-action" onclick="viewTripDetails('<?php echo $trip['id']; ?>')">
+                                    <a href="trip_detail.php?id=<?php echo $trip['id']; ?>" class="action-btn btn-primary-action">
                                         <i class="fas fa-eye"></i>
                                         <span>Detail</span>
                                     </a>
-                                    <a href="#" class="action-btn btn-secondary-action" onclick="editTrip('<?php echo $trip['id']; ?>')">
+                                    <a href="edit_trip.php?id=<?php echo $trip['id']; ?>" class="action-btn btn-secondary-action">
                                         <i class="fas fa-edit"></i>
                                         <span>Edit</span>
                                     </a>
                                     <button class="action-btn btn-warning-action" onclick="toggleTripStatus('<?php echo $trip['id']; ?>', '<?php echo $status === 'active' ? 'inactive' : 'active'; ?>')">
                                         <i class="fas fa-<?php echo $status === 'active' ? 'pause' : 'play'; ?>"></i>
                                         <span><?php echo $status === 'active' ? 'Nonaktif' : 'Aktif'; ?>kan</span>
+                                    </button>
+                                    <button class="action-btn btn-danger-action" onclick="openDeleteModal('<?php echo $trip['id']; ?>', '<?php echo htmlspecialchars($trip['title']); ?>', <?php echo $trip['total_bookings']; ?>)">
+                                        <i class="fas fa-trash"></i>
+                                        <span>Hapus</span>
                                     </button>
                                 </div>
                             </div>
@@ -752,15 +828,46 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
         </div>
     </div>
 
-    <!-- Hidden form for status update -->
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="delete-modal">
+        <div class="delete-modal-content">
+            <div class="delete-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3 class="delete-title">Konfirmasi Hapus Trip</h3>
+            <p class="delete-text">
+                Apakah Anda yakin ingin menghapus trip "<span id="deleteTripTitle"></span>"?
+                <br><br>
+                <strong id="deleteWarning" style="color: #dc3545;"></strong>
+            </p>
+            <div class="delete-actions">
+                <button type="button" class="action-btn btn-secondary-action" onclick="closeDeleteModal()">
+                    <i class="fas fa-times"></i> Batal
+                </button>
+                <button type="button" class="action-btn btn-danger-action" onclick="confirmDeleteTrip()" id="confirmDeleteBtn">
+                    <i class="fas fa-trash"></i> <span id="deleteButtonText">Hapus Trip</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden forms -->
     <form id="statusForm" method="POST" style="display: none;">
         <input type="hidden" name="action" value="update_status">
         <input type="hidden" name="trip_id" id="statusTripId">
         <input type="hidden" name="status" id="statusValue">
     </form>
 
+    <form id="deleteForm" method="POST" style="display: none;">
+        <input type="hidden" name="action" value="delete_trip">
+        <input type="hidden" name="trip_id" id="deleteTripId">
+    </form>
+
     <script src="../assets/js/main.js"></script>
     <script>
+        let currentDeleteTripId = null;
+        let currentDeleteBookingCount = 0;
+
         // Modal functions
         function openAddTripModal() {
             document.getElementById('addTripModal').style.display = 'block';
@@ -772,6 +879,47 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
 
         function closeModal(modalId) {
             document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Delete modal functions
+        function openDeleteModal(tripId, tripTitle, bookingCount) {
+            currentDeleteTripId = tripId;
+            currentDeleteBookingCount = bookingCount;
+            
+            document.getElementById('deleteTripTitle').textContent = tripTitle;
+            
+            const warningElement = document.getElementById('deleteWarning');
+            const deleteButton = document.getElementById('confirmDeleteBtn');
+            const deleteButtonText = document.getElementById('deleteButtonText');
+            
+            if (bookingCount > 0) {
+                warningElement.textContent = `Trip ini memiliki ${bookingCount} pesanan dan tidak dapat dihapus!`;
+                deleteButton.disabled = true;
+                deleteButton.style.opacity = '0.5';
+                deleteButton.style.cursor = 'not-allowed';
+                deleteButtonText.textContent = 'Tidak Dapat Dihapus';
+            } else {
+                warningElement.textContent = 'Tindakan ini tidak dapat dibatalkan!';
+                deleteButton.disabled = false;
+                deleteButton.style.opacity = '1';
+                deleteButton.style.cursor = 'pointer';
+                deleteButtonText.textContent = 'Hapus Trip';
+            }
+            
+            document.getElementById('deleteModal').style.display = 'block';
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+            currentDeleteTripId = null;
+            currentDeleteBookingCount = 0;
+        }
+
+        function confirmDeleteTrip() {
+            if (currentDeleteTripId && currentDeleteBookingCount === 0) {
+                document.getElementById('deleteTripId').value = currentDeleteTripId;
+                document.getElementById('deleteForm').submit();
+            }
         }
 
         // Auto-calculate duration when dates change
@@ -792,17 +940,6 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
             }
         }
 
-        // Trip actions
-        function viewTripDetails(tripId) {
-            // Redirect to trip detail page (to be created)
-            window.location.href = `trip_detail.php?id=${tripId}`;
-        }
-
-        function editTrip(tripId) {
-            // Redirect to edit trip page (to be created)
-            window.location.href = `edit_trip.php?id=${tripId}`;
-        }
-
         function toggleTripStatus(tripId, newStatus) {
             if (confirm(`Apakah Anda yakin ingin mengubah status trip ini menjadi ${newStatus === 'active' ? 'aktif' : 'nonaktif'}?`)) {
                 document.getElementById('statusTripId').value = tripId;
@@ -813,9 +950,14 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
 
         // Close modal when clicking outside
         window.onclick = function(event) {
-            const modal = document.getElementById('addTripModal');
-            if (event.target == modal) {
-                modal.style.display = 'none';
+            const addModal = document.getElementById('addTripModal');
+            const deleteModal = document.getElementById('deleteModal');
+            
+            if (event.target == addModal) {
+                addModal.style.display = 'none';
+            }
+            if (event.target == deleteModal) {
+                closeDeleteModal();
             }
         }
 

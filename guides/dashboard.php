@@ -252,7 +252,6 @@ $guide_rating = $guide_info['rating'] ?? 0;
                 <a href="trips.php"><i class="fas fa-route"></i> Trip Saya</a>
                 <a href="bookings.php"><i class="fas fa-calendar-check"></i> Pesanan</a>
                 <a href="schedule.php"><i class="fas fa-calendar-alt"></i> Jadwal</a>
-                <a href="notifications.php"><i class="fas fa-bell"></i> Notifikasi</a>
                 <a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
             </nav>
         </aside>
@@ -351,10 +350,6 @@ $guide_rating = $guide_info['rating'] ?? 0;
                 <a href="schedule.php" class="action-btn">
                     <i class="fas fa-calendar-alt"></i>
                     <span>Lihat Jadwal</span>
-                </a>
-                <a href="notifications.php" class="action-btn">
-                    <i class="fas fa-bell"></i>
-                    <span>Notifikasi</span>
                 </a>
             </section>
 
