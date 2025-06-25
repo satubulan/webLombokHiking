@@ -1,4 +1,3 @@
-
 <?php
 session_start();
 require_once '../config.php';
@@ -13,8 +12,8 @@ $user_id = $_SESSION['user_id'];
 $userName = $_SESSION['user_name'];
 
 // Get guide info
-$guide_query = $conn->prepare("SELECT * FROM guides WHERE user_id = ?");
-$guide_query->bind_param("s", $user_id);
+$guide_query = $conn->prepare("SELECT * FROM guide WHERE user_id = ?");
+$guide_query->bind_param("i", $user_id); // user_id integer
 $guide_query->execute();
 $guide_result = $guide_query->get_result();
 $guide_info = $guide_result->fetch_assoc();
@@ -27,8 +26,15 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     switch ($_POST['action']) {
         case 'update_status':
-            $booking_id = $_POST['booking_id'];
+            $booking_id = intval($_POST['booking_id']);
             $new_status = $_POST['status'];
+
+            // Validate status value
+            $allowed_statuses = ['pending', 'confirmed', 'cancelled'];
+            if (!in_array($new_status, $allowed_statuses)) {
+                $error = "Status tidak valid.";
+                break;
+            }
             
             // Verify that this booking belongs to guide's trip
             $verify_query = $conn->prepare("
@@ -36,12 +42,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 JOIN trips t ON b.trip_id = t.id 
                 WHERE b.id = ? AND t.guide_id = ?
             ");
-            $verify_query->bind_param("ss", $booking_id, $guide_id);
+            $verify_query->bind_param("ii", $booking_id, $guide_id);
             $verify_query->execute();
             
             if ($verify_query->get_result()->num_rows > 0) {
                 $update_query = $conn->prepare("UPDATE bookings SET status = ? WHERE id = ?");
-                $update_query->bind_param("ss", $new_status, $booking_id);
+                $update_query->bind_param("si", $new_status, $booking_id);
                 
                 if ($update_query->execute()) {
                     $message = "Status pesanan berhasil diperbarui!";
@@ -50,6 +56,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
             } else {
                 $error = "Pesanan tidak ditemukan atau bukan milik Anda.";
+            }
+            break;
+        case 'verifikasi_pembayaran':
+            $booking_id = intval($_POST['booking_id']);
+            // Cek booking milik guide
+            $verify_query = $conn->prepare("
+                SELECT b.id FROM bookings b 
+                JOIN trips t ON b.trip_id = t.id 
+                WHERE b.id = ? AND t.guide_id = ?
+            ");
+            $verify_query->bind_param("ii", $booking_id, $guide_id);
+            $verify_query->execute();
+            if ($verify_query->get_result()->num_rows > 0) {
+                // Update status pembayaran dan booking
+                $conn->query("UPDATE pembayaran SET status='paid', payment_date=NOW() WHERE booking_id=$booking_id");
+                $conn->query("UPDATE bookings SET status='confirmed' WHERE id=$booking_id");
+                $message = "Pembayaran berhasil diverifikasi.";
+            } else {
+                $error = "Booking tidak ditemukan atau bukan milik Anda.";
+            }
+            break;
+        case 'tolak_pembayaran':
+            $booking_id = intval($_POST['booking_id']);
+            $verify_query = $conn->prepare("
+                SELECT b.id FROM bookings b 
+                JOIN trips t ON b.trip_id = t.id 
+                WHERE b.id = ? AND t.guide_id = ?
+            ");
+            $verify_query->bind_param("ii", $booking_id, $guide_id);
+            $verify_query->execute();
+            if ($verify_query->get_result()->num_rows > 0) {
+                $conn->query("UPDATE pembayaran SET status='rejected' WHERE booking_id=$booking_id");
+                $conn->query("UPDATE bookings SET status='cancelled' WHERE id=$booking_id");
+                $message = "Pembayaran ditolak.";
+            } else {
+                $error = "Booking tidak ditemukan atau bukan milik Anda.";
             }
             break;
     }
@@ -62,7 +104,7 @@ $date_filter = $_GET['date'] ?? 'all';
 // Build query for bookings
 $where_conditions = ["t.guide_id = ?"];
 $params = [$guide_id];
-$param_types = "s";
+$param_types = "i";
 
 if ($status_filter !== 'all') {
     $where_conditions[] = "b.status = ?";
@@ -93,21 +135,29 @@ $bookings_query = $conn->prepare("
         t.title as trip_title,
         t.start_date,
         t.end_date,
-        t.price as trip_price,
+        t.package_price as trip_price,
         m.name as mountain_name,
         u.name as user_name,
         u.email as user_email,
-        u.phone as user_phone
+        u.phone as user_phone,
+        p.payment_proof,
+        p.status as payment_status
     FROM bookings b
     JOIN trips t ON b.trip_id = t.id
     JOIN mountains m ON t.mountain_id = m.id
     JOIN users u ON b.user_id = u.id
+    LEFT JOIN pembayaran p ON b.id = p.booking_id
     WHERE {$where_clause}
     ORDER BY b.booking_date DESC
 ");
 
 if (!empty($params)) {
-    $bookings_query->bind_param($param_types, ...$params);
+    // bind_param requires references
+    $refs = [];
+    foreach ($params as $key => $value) {
+        $refs[$key] = &$params[$key];
+    }
+    call_user_func_array([$bookings_query, 'bind_param'], array_merge([$param_types], $refs));
 }
 
 $bookings_query->execute();
@@ -125,10 +175,11 @@ $stats_query = $conn->prepare("
     JOIN trips t ON b.trip_id = t.id
     WHERE t.guide_id = ?
 ");
-$stats_query->bind_param("s", $guide_id);
+$stats_query->bind_param("i", $guide_id);
 $stats_query->execute();
 $stats = $stats_query->get_result()->fetch_assoc();
 ?>
+<!-- HTML bagian tetap sama seperti sebelumnya -->
 
 <!DOCTYPE html>
 <html lang="id">
@@ -769,12 +820,7 @@ $stats = $stats_query->get_result()->fetch_assoc();
                                 </div>
                                 
                                 <div class="booking-details">
-                                    <div class="detail-item">
-                                        <span class="detail-label">Jumlah Peserta</span>
-                                        <span class="detail-value">
-                                            <span class="participants-badge"><?php echo $booking['participants']; ?> orang</span>
-                                        </span>
-                                    </div>
+                                    
                                     <div class="detail-item">
                                         <span class="detail-label">Total Pembayaran</span>
                                         <span class="detail-value price-highlight">Rp <?php echo number_format($booking['total_price'], 0, ',', '.'); ?></span>
@@ -787,16 +833,28 @@ $stats = $stats_query->get_result()->fetch_assoc();
                                         <span class="detail-label">Tanggal Booking</span>
                                         <span class="detail-value"><?php echo date('d M Y H:i', strtotime($booking['booking_date'])); ?></span>
                                     </div>
+                                    <?php if ($booking['payment_proof']): ?>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Bukti Pembayaran</span>
+                                            <a href="../uploads/payments/<?= htmlspecialchars($booking['payment_proof']) ?>" target="_blank">
+                                                <img src="../uploads/payments/<?= htmlspecialchars($booking['payment_proof']) ?>" alt="Bukti Pembayaran" style="max-width:120px; border-radius:8px; margin-top:8px;">
+                                            </a>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                                 
                                 <div class="booking-actions">
-                                    <?php if ($booking['status'] === 'pending'): ?>
-                                        <button class="action-btn btn-confirm" onclick="updateBookingStatus('<?php echo $booking['id']; ?>', 'confirmed')">
-                                            <i class="fas fa-check"></i> Konfirmasi
-                                        </button>
-                                        <button class="action-btn btn-cancel" onclick="updateBookingStatus('<?php echo $booking['id']; ?>', 'cancelled')">
-                                            <i class="fas fa-times"></i> Tolak
-                                        </button>
+                                    <?php if ($booking['status'] === 'pending' && $booking['payment_proof']): ?>
+                                        <form method="POST" style="display:inline;">
+                                            <input type="hidden" name="action" value="verifikasi_pembayaran">
+                                            <input type="hidden" name="booking_id" value="<?= $booking['id'] ?>">
+                                            <button type="submit" class="action-btn btn-confirm"><i class="fas fa-check"></i> Verifikasi Pembayaran</button>
+                                        </form>
+                                        <form method="POST" style="display:inline;">
+                                            <input type="hidden" name="action" value="tolak_pembayaran">
+                                            <input type="hidden" name="booking_id" value="<?= $booking['id'] ?>">
+                                            <button type="submit" class="action-btn btn-cancel"><i class="fas fa-times"></i> Tolak Pembayaran</button>
+                                        </form>
                                     <?php endif; ?>
                                     <a href="tel:<?php echo htmlspecialchars($booking['user_phone'] ?? ''); ?>" class="action-btn btn-contact">
                                         <i class="fas fa-phone"></i> Hubungi

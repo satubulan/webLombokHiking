@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $confirm_password = $_POST['confirm_password'];
     $phone = trim($_POST['phone']);
     $role = 'user';
-    $avatar = 'default.jpg';
+    $profile_picture = 'default.jpg';
     $id = uniqid('u');
 
     if (empty($name) || empty($email) || empty($password) || empty($confirm_password) || empty($phone)) {
@@ -39,8 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $error = "Email sudah terdaftar.";
         } else {
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            $insert_query = $conn->prepare("INSERT INTO users (id, name, email, password, phone, avatar, role, active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)");
-            $insert_query->bind_param("sssssss", $id, $name, $email, $hashed_password, $phone, $avatar, $role);
+            $insert_query = $conn->prepare("INSERT INTO users (id, name, email, password, phone, profile_picture, role, active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)");
+            $insert_query->bind_param("sssssss", $id, $name, $email, $hashed_password, $phone, $profile_picture, $role);
 
             if ($insert_query->execute()) {
                 $success = "Pendaftaran berhasil! Silakan login.";

@@ -23,5 +23,5 @@ if (ini_get("session.use_cookies")) {
 session_destroy();
 
 // Redirect ke halaman utama
-header('Location: index.php');
+header('Location: indexx.php');
 exit();

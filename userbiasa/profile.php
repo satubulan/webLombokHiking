@@ -679,10 +679,6 @@ $recent_result = $recent_bookings->get_result();
                     <i class="fas fa-calendar-plus"></i> 
                     Booking Trip
                 </a>
-                <a href="keranjang.php">
-                    <i class="fas fa-shopping-cart"></i> 
-                    Keranjang
-                </a>
                 <a href="status_pembayaran.php">
                     <i class="fas fa-credit-card"></i> 
                     Status Pembayaran
@@ -690,6 +686,10 @@ $recent_result = $recent_bookings->get_result();
                 <a href="paket_saya.php">
                     <i class="fas fa-hiking"></i> 
                     Paket Saya
+                </a>
+                <a href="ajukan_guide.php">
+                    <i class="fas fa-user-plus"></i> 
+                    Ajukan Diri Jadi Guide
                 </a>
                 <a href="../logout.php">
                     <i class="fas fa-sign-out-alt"></i> 

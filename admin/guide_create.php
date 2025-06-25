@@ -19,14 +19,14 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-    // Generate UUID untuk users.id
-    $user_id = generateUUIDv4();
-
     $name = $conn->real_escape_string($_POST['name']);
     $email = $conn->real_escape_string($_POST['email']);
     $password = password_hash($conn->real_escape_string($_POST['password']), PASSWORD_DEFAULT);
     $phone = $conn->real_escape_string($_POST['phone']);
+    $specialization = isset($_POST['specialization']) ? $conn->real_escape_string($_POST['specialization']) : '';
+    $experience = isset($_POST['experience']) ? $conn->real_escape_string($_POST['experience']) : '';
+    $languages = isset($_POST['languages']) ? $conn->real_escape_string($_POST['languages']) : '';
+    $bio = isset($_POST['bio']) ? $conn->real_escape_string($_POST['bio']) : '';
 
     // Cek apakah email sudah terdaftar
     $stmtCheck = $conn->prepare("SELECT id FROM users WHERE email = ?");
@@ -34,41 +34,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmtCheck->execute();
     $stmtCheck->store_result();
     if ($stmtCheck->num_rows > 0) {
-        $error = "Email sudah terdaftar, silakan gunakan email lain.";
+        $stmtCheck->close();
+        header("Location: guide_create.php?error=" . urlencode("Email sudah terdaftar, silakan gunakan email lain."));
+        exit();
     } else {
         $stmtCheck->close();
-
         // Insert data ke tabel users
-        $user_sql = "INSERT INTO users (id, name, email, password, role, phone) VALUES (?, ?, ?, ?, 'guide', ?)";
+        $user_sql = "INSERT INTO users (name, email, password, role, phone) VALUES (?, ?, ?, 'guide', ?)";
         $user_stmt = $conn->prepare($user_sql);
-        $user_stmt->bind_param("sssss", $user_id, $name, $email, $password, $phone);
-
+        $user_stmt->bind_param("ssss", $name, $email, $password, $phone);
         if ($user_stmt->execute()) {
-
-            // Generate UUID untuk guides.id
-            $guide_id = generateUUIDv4();
-
-            // Insert data ke tabel guides
-            $guide_sql = "INSERT INTO guides (id, user_id, name) VALUES (?, ?, ?)";
+            $user_id = $conn->insert_id;
+            // Insert data ke tabel guide
+            $guide_sql = "INSERT INTO guide (user_id, specialization, experience, languages, bio, status) VALUES (?, ?, ?, ?, ?, 'pending')";
             $guide_stmt = $conn->prepare($guide_sql);
-            $guide_stmt->bind_param("sss", $guide_id, $user_id, $name);
-
+            $guide_stmt->bind_param("issss", $user_id, $specialization, $experience, $languages, $bio);
             if ($guide_stmt->execute()) {
-                $message = "Guide berhasil ditambahkan!";
-                header("Location: guides.php?message=" . urlencode($message));
+                header("Location: guides.php?message=" . urlencode("Guide berhasil ditambahkan!"));
                 exit();
             } else {
-                // Jika insert guide gagal, hapus user yg sudah dibuat supaya data konsisten
-                $conn->query("DELETE FROM users WHERE id = '$user_id'");
-                $error = "Error menambahkan guide: " . $guide_stmt->error;
+                $conn->query("DELETE FROM users WHERE id = $user_id");
+                header("Location: guide_create.php?error=" . urlencode("Error menambahkan guide: " . $guide_stmt->error));
+                exit();
             }
-
             $guide_stmt->close();
-
         } else {
-            $error = "Error menambahkan pengguna baru: " . $user_stmt->error;
+            header("Location: guide_create.php?error=" . urlencode("Error menambahkan pengguna baru: " . $user_stmt->error));
+            exit();
         }
-
         $user_stmt->close();
     }
 }
@@ -94,6 +87,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <li><a href="guides.php" class="nav-link active"><i class="fas fa-map-signs"></i> Guide</a></li>
                 <li><a href="mountains.php" class="nav-link"><i class="fas fa-mountain"></i> Gunung</a></li>
                 <li><a href="trips.php" class="nav-link"><i class="fas fa-route"></i> Trip</a></li>
+                <li><a href="feedback.php" class="nav-link"><i class="fas fa-comments"></i> Feedback</a></li>
+                <li><a href="lihat_pembayaran.php" class="nav-link"><i class="fas fa-money-bill-wave"></i> Lihat Pembayaran</a></li>
+                <li><a href="notifikasi.php" class="nav-link"><i class="fas fa-bell"></i> Notifikasi</a></li>
                 <li><a href="profile.php" class="nav-link"><i class="fas fa-user-cog"></i> Profil</a></li>
                 <li><a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
             </ul>
@@ -106,11 +102,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <a href="guides.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Kembali</a>
             </div>
 
-            <?php if (!empty($message)): ?>
-                <div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div>
-            <?php endif; ?>
-            <?php if (!empty($error)): ?>
-                <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
+            <?php if (isset($_GET['error'])): ?>
+                <div class="alert alert-danger"><?php echo htmlspecialchars($_GET['error']); ?></div>
             <?php endif; ?>
 
             <div class="admin-form-container">
@@ -133,6 +126,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="form-group">
                         <label for="phone">Nomor Telepon:</label>
                         <input type="text" id="phone" name="phone" placeholder="Masukkan nomor telepon guide" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="specialization">Spesialisasi:</label>
+                        <input type="text" id="specialization" name="specialization" placeholder="Contoh: Gunung Rinjani, Trekking, dll" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="experience">Pengalaman:</label>
+                        <textarea id="experience" name="experience" placeholder="Ceritakan pengalaman guide" required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="languages">Bahasa:</label>
+                        <input type="text" id="languages" name="languages" placeholder="Contoh: Indonesia, Inggris" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bio">Bio:</label>
+                        <textarea id="bio" name="bio" placeholder="Deskripsi singkat tentang guide" required></textarea>
                     </div>
 
                     <div class="form-group form-group-actions">

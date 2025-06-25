@@ -13,13 +13,13 @@ $userName = $_SESSION['user_name'];
 
 // Get user statistics
 $total_bookings = $conn->prepare("SELECT COUNT(*) AS total FROM bookings WHERE user_id = ?");
-$total_bookings->bind_param("s", $user_id);
+$total_bookings->bind_param("i", $user_id);
 $total_bookings->execute();
 $bookings_count = $total_bookings->get_result()->fetch_assoc()['total'];
 
 // Total spent
 $total_spent = $conn->prepare("SELECT COALESCE(SUM(total_price), 0) AS total FROM bookings WHERE user_id = ? AND status = 'confirmed'");
-$total_spent->bind_param("s", $user_id);
+$total_spent->bind_param("i", $user_id);
 $total_spent->execute();
 $spent = $total_spent->get_result()->fetch_assoc()['total'];
 
@@ -27,10 +27,9 @@ $spent = $total_spent->get_result()->fetch_assoc()['total'];
 $completed_trips = $conn->prepare("
     SELECT COUNT(*) AS total 
     FROM bookings b 
-    JOIN trips t ON b.trip_id = t.id 
-    WHERE b.user_id = ? AND b.status = 'confirmed' AND t.end_date < CURDATE()
+    WHERE b.user_id = ? AND b.status = 'confirmed'
 ");
-$completed_trips->bind_param("s", $user_id);
+$completed_trips->bind_param("i", $user_id);
 $completed_trips->execute();
 $completed_count = $completed_trips->get_result()->fetch_assoc()['total'];
 
@@ -38,36 +37,43 @@ $completed_count = $completed_trips->get_result()->fetch_assoc()['total'];
 $upcoming_trips = $conn->prepare("
     SELECT COUNT(*) AS total 
     FROM bookings b 
-    JOIN trips t ON b.trip_id = t.id 
-    WHERE b.user_id = ? AND b.status = 'confirmed' AND t.start_date > CURDATE()
+    WHERE b.user_id = ? AND b.status = 'pending'
 ");
-$upcoming_trips->bind_param("s", $user_id);
+$upcoming_trips->bind_param("i", $user_id);
 $upcoming_trips->execute();
 $upcoming_count = $upcoming_trips->get_result()->fetch_assoc()['total'];
 
 // Get filters
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 $mountain_filter = isset($_GET['mountain']) ? $_GET['mountain'] : '';
-$difficulty_filter = isset($_GET['difficulty']) ? $_GET['difficulty'] : '';
 $price_filter = isset($_GET['price']) ? $_GET['price'] : '';
 
-// Build query for available trips
+// Get featured trips (yang dibuat guide) - TRIPS REKOMENDASI
+$featured_trips = $conn->query("
+    SELECT t.*, m.name as mountain_name, m.height, m.location, 
+           u.name as guide_name, COALESCE(g.rating, 0) as guide_rating, g.experience,
+           (t.capacity - COALESCE((SELECT COUNT(*) FROM bookings b WHERE b.trip_id = t.id AND b.status IN ('confirmed', 'pending')), 0)) as available_spots
+    FROM trips t 
+    LEFT JOIN mountains m ON t.mountain_id = m.id 
+    LEFT JOIN users u ON t.guide_id = u.id 
+    LEFT JOIN guide g ON u.id = g.user_id
+    
+");
+
+// Build query for mountain tickets (regular tickets)
 $where_conditions = [];
 $params = [];
 $types = '';
 
 $query = "
-    SELECT t.*, m.name as mountain_name, m.difficulty, m.height, m.location, 
-           g.name as guide_name, g.rating as guide_rating, g.experience,
-           (t.max_participants - t.current_participants) as available_spots
-    FROM trips t 
-    JOIN mountains m ON t.mountain_id = m.id 
-    JOIN guides g ON t.guide_id = g.id 
-    WHERE t.start_date > CURDATE()
+    SELECT mt.*, m.name as mountain_name, m.height, m.location, m.description
+    FROM mountain_tickets mt 
+    LEFT JOIN mountains m ON mt.mountain_id = m.id 
+    WHERE mt.status = 'active' AND mt.type = 'regular'
 ";
 
 if (!empty($search)) {
-    $where_conditions[] = "(t.title LIKE ? OR m.name LIKE ? OR m.location LIKE ?)";
+    $where_conditions[] = "(mt.title LIKE ? OR m.name LIKE ? OR m.location LIKE ?)";
     $search_param = "%$search%";
     $params[] = $search_param;
     $params[] = $search_param;
@@ -78,25 +84,19 @@ if (!empty($search)) {
 if (!empty($mountain_filter)) {
     $where_conditions[] = "m.id = ?";
     $params[] = $mountain_filter;
-    $types .= 's';
-}
-
-if (!empty($difficulty_filter)) {
-    $where_conditions[] = "m.difficulty = ?";
-    $params[] = $difficulty_filter;
-    $types .= 's';
+    $types .= 'i';
 }
 
 if (!empty($price_filter)) {
     switch ($price_filter) {
         case 'under_1m':
-            $where_conditions[] = "t.price < 1000000";
+            $where_conditions[] = "mt.price < 1000000";
             break;
         case '1m_2m':
-            $where_conditions[] = "t.price BETWEEN 1000000 AND 2000000";
+            $where_conditions[] = "mt.price BETWEEN 1000000 AND 2000000";
             break;
         case 'over_2m':
-            $where_conditions[] = "t.price > 2000000";
+            $where_conditions[] = "mt.price > 2000000";
             break;
     }
 }
@@ -105,27 +105,20 @@ if (!empty($where_conditions)) {
     $query .= " AND " . implode(" AND ", $where_conditions);
 }
 
-$query .= " ORDER BY t.featured DESC, t.created_at DESC";
+$query .= " ORDER BY mt.created_at DESC";
 
 $stmt = $conn->prepare($query);
+if (!$stmt) {
+    die("Gagal prepare statement: " . $conn->error);
+}
 if (!empty($params)) {
     $stmt->bind_param($types, ...$params);
 }
 $stmt->execute();
-$trips_result = $stmt->get_result();
+$tickets_result = $stmt->get_result();
 
 // Get all mountains for filter
 $mountains = $conn->query("SELECT id, name FROM mountains ORDER BY name");
-
-// Get featured trips
-$featured_trips = $conn->query("
-    SELECT t.*, m.name as mountain_name, m.difficulty, g.name as guide_name, g.rating as guide_rating
-    FROM trips t 
-    JOIN mountains m ON t.mountain_id = m.id 
-    JOIN guides g ON t.guide_id = g.id 
-    WHERE t.featured = 1 AND t.start_date > CURDATE()
-    LIMIT 3
-");
 ?>
 
 <!DOCTYPE html>
@@ -138,7 +131,7 @@ $featured_trips = $conn->query("
     <link rel="stylesheet" href="../assets/css/index.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        /* User Dashboard Styles */
+        /* [CSS yang sama seperti sebelumnya] */
         :root {
             --primary-green: #2e8b57;
             --secondary-green: #3cb371;
@@ -203,7 +196,6 @@ $featured_trips = $conn->query("
             overflow-y: auto;
         }
 
-        /* Welcome Section */
         .user-welcome {
             background: linear-gradient(135deg, var(--primary-green), var(--secondary-green));
             color: white;
@@ -211,19 +203,6 @@ $featured_trips = $conn->query("
             border-radius: 20px;
             margin-bottom: 30px;
             box-shadow: 0 10px 30px rgba(46, 139, 87, 0.3);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .user-welcome::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 100px;
-            height: 100px;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="rgba(255,255,255,0.1)"><path d="M14,6L10.25,11L13.1,14.8L11.5,16C9.81,13.75 7,10 7,10L1,18H23L14,6Z"/></svg>') no-repeat center;
-            background-size: contain;
         }
 
         .user-info {
@@ -245,18 +224,6 @@ $featured_trips = $conn->query("
             border: 3px solid rgba(255,255,255,0.3);
         }
 
-        .user-details h2 {
-            margin: 0 0 5px 0;
-            font-size: 1.8rem;
-            font-weight: 700;
-        }
-
-        .user-details p {
-            margin: 0;
-            opacity: 0.9;
-        }
-
-        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -273,12 +240,6 @@ $featured_trips = $conn->query("
             align-items: center;
             gap: 20px;
             border-left: 5px solid var(--accent-green);
-            transition: all 0.3s ease;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
         }
 
         .stat-card i {
@@ -293,22 +254,6 @@ $featured_trips = $conn->query("
             justify-content: center;
         }
 
-        .stat-card div h3 {
-            font-size: 0.9rem;
-            color: var(--light-text);
-            margin: 0 0 8px 0;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .stat-card div p {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: var(--dark-text);
-            margin: 0;
-        }
-
-        /* Filters Section */
         .filters-section {
             background: white;
             padding: 25px;
@@ -324,12 +269,6 @@ $featured_trips = $conn->query("
             margin-bottom: 20px;
         }
 
-        .filters-header h3 {
-            margin: 0;
-            color: var(--dark-text);
-            font-size: 1.3rem;
-        }
-
         .search-box {
             position: relative;
             flex: 1;
@@ -342,13 +281,6 @@ $featured_trips = $conn->query("
             border: 2px solid #e5e7eb;
             border-radius: 12px;
             font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .search-box input:focus {
-            outline: none;
-            border-color: var(--accent-green);
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
         }
 
         .search-box i {
@@ -366,13 +298,6 @@ $featured_trips = $conn->query("
             margin-top: 20px;
         }
 
-        .filter-group label {
-            display: block;
-            font-weight: 600;
-            color: var(--dark-text);
-            margin-bottom: 8px;
-        }
-
         .filter-group select {
             width: 100%;
             padding: 12px 15px;
@@ -380,13 +305,6 @@ $featured_trips = $conn->query("
             border-radius: 10px;
             font-size: 1rem;
             background: white;
-            cursor: pointer;
-            transition: border-color 0.3s ease;
-        }
-
-        .filter-group select:focus {
-            outline: none;
-            border-color: var(--accent-green);
         }
 
         .filter-btn {
@@ -397,43 +315,9 @@ $featured_trips = $conn->query("
             border-radius: 10px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
             align-self: end;
         }
 
-        .filter-btn:hover {
-            background: var(--primary-green);
-            transform: translateY(-2px);
-        }
-
-        /* Featured Trips */
-        .featured-section {
-            margin-bottom: 30px;
-        }
-
-        .section-header {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-
-        .section-header h3 {
-            font-size: 1.5rem;
-            color: var(--dark-text);
-            margin: 0;
-        }
-
-        .featured-badge {
-            background: linear-gradient(135deg, #fbbf24, #f59e0b);
-            color: white;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
-
-        /* Trip Cards */
         .trips-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
@@ -458,24 +342,12 @@ $featured_trips = $conn->query("
             height: 220px;
             background: linear-gradient(135deg, var(--primary-green), var(--secondary-green));
             position: relative;
-            overflow: hidden;
-        }
-
-        .trip-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .trip-image::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(45deg, rgba(46,139,87,0.8), rgba(60,179,113,0.6));
-            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
         }
 
         .trip-badge {
@@ -512,7 +384,6 @@ $featured_trips = $conn->query("
             font-weight: 700;
             color: var(--dark-text);
             margin: 0 0 10px 0;
-            line-height: 1.3;
         }
 
         .trip-mountain {
@@ -537,11 +408,6 @@ $featured_trips = $conn->query("
             gap: 8px;
             font-size: 0.9rem;
             color: var(--light-text);
-        }
-
-        .detail-item i {
-            color: var(--accent-green);
-            width: 16px;
         }
 
         .trip-guide {
@@ -621,67 +487,26 @@ $featured_trips = $conn->query("
             color: white;
         }
 
-        /* Responsive Design */
-        @media (max-width: 767px) {
-            .admin-container {
-                flex-direction: column;
-            }
-
-            .sidebar {
-                width: 100%;
-                order: 2;
-            }
-
-            .main {
-                order: 1;
-                padding: 20px;
-            }
-
-            .user-info {
-                flex-direction: column;
-                text-align: center;
-            }
-
-            .filters-header {
-                flex-direction: column;
-                gap: 15px;
-                align-items: stretch;
-            }
-
-            .filters-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .trips-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 15px;
-            }
-
-            .stat-card {
-                padding: 20px 15px;
-                flex-direction: column;
-                text-align: center;
-            }
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
         }
 
-        @media (min-width: 768px) and (max-width: 1023px) {
-            .sidebar {
-                width: 250px;
-            }
-
-            .trips-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
+        .section-header h3 {
+            font-size: 1.5rem;
+            color: var(--dark-text);
+            margin: 0;
         }
 
-        @media (min-width: 1440px) {
-            .trips-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
+        .featured-badge {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
         }
 
         .availability-indicator {
@@ -708,11 +533,30 @@ $featured_trips = $conn->query("
         .availability-dot.full {
             background: #ef4444;
         }
+
+        /* Package badge styling */
+        .package-badge {
+            background: linear-gradient(135deg, #8b5cf6, #a855f7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .regular-badge {
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
     <div class="admin-container">
-        <!-- Responsive Sidebar -->
+        <!-- Sidebar -->
         <aside class="sidebar">
             <div class="logo">
                 <i class="fas fa-mountain"></i>
@@ -731,10 +575,7 @@ $featured_trips = $conn->query("
                     <i class="fas fa-calendar-plus"></i> 
                     Booking Trip
                 </a>
-                <a href="keranjang.php">
-                    <i class="fas fa-shopping-cart"></i> 
-                    Keranjang
-                </a>
+                
                 <a href="status_pembayaran.php">
                     <i class="fas fa-credit-card"></i> 
                     Status Pembayaran
@@ -742,6 +583,10 @@ $featured_trips = $conn->query("
                 <a href="paket_saya.php">
                     <i class="fas fa-hiking"></i> 
                     Paket Saya
+                </a>
+                <a href="ajukan_guide.php">
+                    <i class="fas fa-user-plus"></i> 
+                    Ajukan Diri Jadi Guide
                 </a>
                 <a href="../logout.php">
                     <i class="fas fa-sign-out-alt"></i> 
@@ -801,82 +646,104 @@ $featured_trips = $conn->query("
                 </div>
             </section>
 
-            <!-- Featured Trips Section -->
-            <?php if ($featured_trips->num_rows > 0): ?>
+            <!-- Featured Trips Section (PAKET DARI GUIDE) -->
+            <?php if ($featured_trips && $featured_trips->num_rows > 0): ?>
             <section class="featured-section">
                 <div class="section-header">
                     <h3>
                         <i class="fas fa-star"></i>
-                        Trip Unggulan
+                        Paket Trip Unggulan
                     </h3>
-                    <span class="featured-badge">Rekomendasi</span>
+                    <span class="featured-badge">Rekomendasi Guide</span>
                 </div>
                 
                 <div class="trips-grid">
                     <?php while ($trip = $featured_trips->fetch_assoc()): ?>
                         <div class="trip-card">
                             <div class="trip-image">
-                                <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/9ce17938-6af1-4861-ad2b-4b18a3612a9a.png?= urlencode($trip['mountain_name']) ?>" 
-                                     alt="Pemandangan indah <?= htmlspecialchars($trip['mountain_name']) ?> dengan puncak yang menjulang tinggi dan panorama alam yang menakjubkan" 
-                                     onerror="this.style.display='none'">
-                                <div class="trip-badge"><?= htmlspecialchars($trip['difficulty']) ?></div>
-                                <div class="trip-price">Rp <?= number_format($trip['price'], 0, ',', '.') ?></div>
+                                <img src="<?= $trip['image'] ? '../uploads/trips/' . $trip['image'] : 'https://placehold.co/400x220/2e8b57/ffffff?text=' . urlencode($trip['mountain_name'] ?? 'Gunung') ?>" 
+                                     alt="<?= htmlspecialchars($trip['mountain_name'] ?? 'Gunung Lombok') ?>" 
+                                     style="width: 100%; height: 100%; object-fit: cover;"
+                                     onerror="this.style.display='none'; this.parentElement.innerHTML='<?= htmlspecialchars($trip['mountain_name'] ?? 'Gunung Lombok') ?>';">
+                                <div class="trip-badge package-badge">Paket Guide</div>
+                                <div class="trip-price">Rp <?= number_format($trip['package_price'], 0, ',', '.') ?></div>
                             </div>
                             
                             <div class="trip-content">
                                 <h4 class="trip-title"><?= htmlspecialchars($trip['title']) ?></h4>
                                 <div class="trip-mountain">
                                     <i class="fas fa-mountain"></i>
-                                    <?= htmlspecialchars($trip['mountain_name']) ?>
+                                    <?= htmlspecialchars($trip['mountain_name'] ?? 'Lombok') ?>
                                 </div>
                                 
                                 <div class="trip-details">
                                     <div class="detail-item">
                                         <i class="fas fa-calendar-alt"></i>
-                                        <span><?= $trip['duration'] ?> hari</span>
+                                        <span><?= date_diff(date_create($trip['start_date']), date_create($trip['end_date']))->days + 1 ?> hari</span>
                                     </div>
                                     <div class="detail-item">
                                         <i class="fas fa-users"></i>
-                                        <span><?= $trip['max_participants'] ?> orang max</span>
+                                        <span><?= $trip['available_spots'] ?> slot tersisa</span>
                                     </div>
                                     <div class="detail-item">
                                         <i class="fas fa-calendar-day"></i>
                                         <span><?= date('d M Y', strtotime($trip['start_date'])) ?></span>
                                     </div>
                                     <div class="detail-item">
-                                        <i class="fas fa-map-marker-alt"></i>
-                                        <span><?= htmlspecialchars($trip['meeting_point']) ?></span>
+                                        <i class="fas fa-ruler-vertical"></i>
+                                        <span><?= number_format($trip['height'] ?? 0) ?> mdpl</span>
                                     </div>
+                                </div>
+
+                                <div class="availability-indicator">
+                                    <?php 
+                                    $available_spots = $trip['available_spots'];
+                                    if ($available_spots > 5) {
+                                        echo '<div class="availability-dot available"></div><span>Tersedia</span>';
+                                    } elseif ($available_spots > 0) {
+                                        echo '<div class="availability-dot limited"></div><span>Terbatas</span>';
+                                    } else {
+                                        echo '<div class="availability-dot full"></div><span>Penuh</span>';
+                                    }
+                                    ?>
                                 </div>
 
                                 <div class="trip-guide">
                                     <div class="trip-guide-avatar">
-                                        <?= strtoupper(substr($trip['guide_name'], 0, 2)) ?>
+                                        <?= strtoupper(substr($trip['guide_name'] ?? 'G', 0, 2)) ?>
                                     </div>
                                     <div class="trip-guide-info">
-                                        <h5>Guide: <?= htmlspecialchars($trip['guide_name']) ?></h5>
+                                        <h5>Guide: <?= htmlspecialchars($trip['guide_name'] ?? 'Guide') ?></h5>
                                         <div class="guide-rating">
                                             <span class="stars">
                                                 <?php 
-                                                $rating = $trip['guide_rating'];
+                                                $rating = $trip['guide_rating'] ?? 0;
                                                 for ($i = 1; $i <= 5; $i++) {
                                                     echo $i <= $rating ? '★' : '☆';
                                                 }
                                                 ?>
                                             </span>
-                                            <span><?= number_format($trip['guide_rating'], 1) ?>/5.0</span>
+                                            <span><?= number_format($trip['guide_rating'] ?? 0, 1) ?>/5.0</span>
+                                            <span>• <?= $trip['experience'] ?? '0' ?> tahun</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div class="trip-actions">
-                                    <button class="btn-book" onclick="bookTrip('<?= $trip['id'] ?>')">
-                                        <i class="fas fa-hiking"></i>
-                                        Book Sekarang
-                                    </button>
-                                    <button class="btn-cart" onclick="addToCart('<?= $trip['id'] ?>')">
-                                        <i class="fas fa-cart-plus"></i>
-                                    </button>
+                                    <?php if ($available_spots > 0): ?>
+                                        <button class="btn-book" onclick="bookPackageTrip(<?= $trip['id'] ?>)">
+                                            <i class="fas fa-credit-card"></i>
+                                            Book & Bayar
+                                        </button>
+                                        <button class="btn-cart" onclick="addTripToCart(<?= $trip['id'] ?>)">
+                                            <i class="fas fa-cart-plus"></i>
+                                        </button>
+                                    <?php else: ?>
+                                        <button class="btn-book" disabled style="opacity: 0.5; cursor: not-allowed;">
+                                            <i class="fas fa-ban"></i>
+                                            Trip Penuh
+                                        </button>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -890,11 +757,11 @@ $featured_trips = $conn->query("
                 <div class="filters-header">
                     <h3>
                         <i class="fas fa-filter"></i>
-                        Cari Trip Impian Anda
+                        Cari Tiket Reguler
                     </h3>
                     <div class="search-box">
                         <i class="fas fa-search"></i>
-                        <input type="text" placeholder="Cari berdasarkan nama trip, gunung, atau lokasi..." 
+                        <input type="text" placeholder="Cari berdasarkan nama tiket, gunung, atau lokasi..." 
                                value="<?= htmlspecialchars($search) ?>" id="searchInput">
                     </div>
                 </div>
@@ -905,23 +772,18 @@ $featured_trips = $conn->query("
                             <label for="mountain">Pilih Gunung</label>
                             <select name="mountain" id="mountain">
                                 <option value="">Semua Gunung</option>
-                                <?php while ($mountain = $mountains->fetch_assoc()): ?>
+                                <?php 
+                                if ($mountains) {
+                                    while ($mountain = $mountains->fetch_assoc()): 
+                                ?>
                                     <option value="<?= $mountain['id'] ?>" 
                                             <?= $mountain_filter == $mountain['id'] ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($mountain['name']) ?>
                                     </option>
-                                <?php endwhile; ?>
-                            </select>
-                        </div>
-
-                        <div class="filter-group">
-                            <label for="difficulty">Tingkat Kesulitan</label>
-                            <select name="difficulty" id="difficulty">
-                                <option value="">Semua Level</option>
-                                <option value="Easy" <?= $difficulty_filter == 'Easy' ? 'selected' : '' ?>>Easy</option>
-                                <option value="Moderate" <?= $difficulty_filter == 'Moderate' ? 'selected' : '' ?>>Moderate</option>
-                                <option value="Hard" <?= $difficulty_filter == 'Hard' ? 'selected' : '' ?>>Hard</option>
-                                <option value="Expert" <?= $difficulty_filter == 'Expert' ? 'selected' : '' ?>>Expert</option>
+                                <?php 
+                                    endwhile; 
+                                }
+                                ?>
                             </select>
                         </div>
 
@@ -937,108 +799,76 @@ $featured_trips = $conn->query("
 
                         <button type="submit" class="filter-btn">
                             <i class="fas fa-search"></i>
-                            Cari Trip
+                            Cari Tiket
                         </button>
                     </div>
                 </form>
             </div>
 
-            <!-- All Trips Section -->
+            <!-- Regular Tickets Section -->
             <section>
                 <div class="section-header">
                     <h3>
-                        <i class="fas fa-list"></i>
-                        Semua Trip Tersedia
+                        <i class="fas fa-ticket-alt"></i>
+                        Tiket Reguler Tersedia
                     </h3>
                 </div>
                 
-                <?php if ($trips_result->num_rows > 0): ?>
+                <?php if ($tickets_result && $tickets_result->num_rows > 0): ?>
                     <div class="trips-grid">
-                        <?php while ($trip = $trips_result->fetch_assoc()): ?>
+                        <?php while ($ticket = $tickets_result->fetch_assoc()): ?>
                             <div class="trip-card">
                                 <div class="trip-image">
-                                    <img src="https://placehold.co/400x220/2e8b57/ffffff?text=<?= urlencode($trip['mountain_name']) ?>" 
-                                         alt="Pemandangan spektakuler <?= htmlspecialchars($trip['mountain_name']) ?> dengan jalur pendakian yang menantang dan view alam yang memukau" 
-                                         onerror="this.style.display='none'">
-                                    <div class="trip-badge"><?= htmlspecialchars($trip['difficulty']) ?></div>
-                                    <div class="trip-price">Rp <?= number_format($trip['price'], 0, ',', '.') ?></div>
+                                    <img src="https://placehold.co/400x220/0891b2/ffffff?text=<?= urlencode($ticket['mountain_name'] ?? 'Gunung') ?>" 
+                                         alt="<?= htmlspecialchars($ticket['mountain_name'] ?? 'Gunung Lombok') ?>" 
+                                         style="width: 100%; height: 100%; object-fit: cover;"
+                                         onerror="this.style.display='none'; this.parentElement.innerHTML='<?= htmlspecialchars($ticket['mountain_name'] ?? 'Gunung Lombok') ?>';">
+                                    <div class="trip-badge regular-badge">Tiket Reguler</div>
+                                                                        <div class="trip-price">Rp <?= number_format($ticket['price'], 0, ',', '.') ?></div>
                                 </div>
                                 
                                 <div class="trip-content">
-                                    <h4 class="trip-title"><?= htmlspecialchars($trip['title']) ?></h4>
+                                    <h4 class="trip-title"><?= htmlspecialchars($ticket['title']) ?></h4>
                                     <div class="trip-mountain">
                                         <i class="fas fa-mountain"></i>
-                                        <?= htmlspecialchars($trip['mountain_name']) ?> - <?= htmlspecialchars($trip['location']) ?>
+                                        <?= htmlspecialchars($ticket['mountain_name'] ?? 'Lombok') ?> - <?= htmlspecialchars($ticket['location'] ?? 'Lombok') ?>
                                     </div>
                                     
                                     <div class="trip-details">
                                         <div class="detail-item">
-                                            <i class="fas fa-calendar-alt"></i>
-                                            <span><?= $trip['duration'] ?> hari</span>
+                                            <i class="fas fa-tag"></i>
+                                            <span><?= ucfirst($ticket['type']) ?></span>
                                         </div>
                                         <div class="detail-item">
-                                            <i class="fas fa-users"></i>
-                                            <span><?= $trip['available_spots'] ?> slot tersisa</span>
+                                            <i class="fas fa-map-marker-alt"></i>
+                                            <span><?= htmlspecialchars($ticket['location'] ?? 'Lombok') ?></span>
                                         </div>
-                                        <div class="detail-item">
-                                            <i class="fas fa-calendar-day"></i>
-                                            <span><?= date('d M Y', strtotime($trip['start_date'])) ?></span>
-                                        </div>
+                                        <?php if ($ticket['height']): ?>
                                         <div class="detail-item">
                                             <i class="fas fa-ruler-vertical"></i>
-                                            <span><?= number_format($trip['height']) ?> mdpl</span>
+                                            <span><?= number_format($ticket['height']) ?> mdpl</span>
+                                        </div>
+                                        <?php endif; ?>
+                                        <div class="detail-item">
+                                            <i class="fas fa-calendar-plus"></i>
+                                            <span><?= date('d M Y', strtotime($ticket['created_at'])) ?></span>
                                         </div>
                                     </div>
 
-                                    <div class="availability-indicator">
-                                        <?php 
-                                        $available_spots = $trip['available_spots'];
-                                        if ($available_spots > 5) {
-                                            echo '<div class="availability-dot available"></div><span>Tersedia</span>';
-                                        } elseif ($available_spots > 0) {
-                                            echo '<div class="availability-dot limited"></div><span>Terbatas</span>';
-                                        } else {
-                                            echo '<div class="availability-dot full"></div><span>Penuh</span>';
-                                        }
-                                        ?>
+                                    <?php if ($ticket['description']): ?>
+                                    <div style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; font-size: 0.9rem; color: var(--light-text);">
+                                        <?= htmlspecialchars(substr($ticket['description'], 0, 100)) ?><?= strlen($ticket['description']) > 100 ? '...' : '' ?>
                                     </div>
-
-                                    <div class="trip-guide">
-                                        <div class="trip-guide-avatar">
-                                            <?= strtoupper(substr($trip['guide_name'], 0, 2)) ?>
-                                        </div>
-                                        <div class="trip-guide-info">
-                                            <h5>Guide: <?= htmlspecialchars($trip['guide_name']) ?></h5>
-                                            <div class="guide-rating">
-                                                <span class="stars">
-                                                    <?php 
-                                                    $rating = $trip['guide_rating'];
-                                                    for ($i = 1; $i <= 5; $i++) {
-                                                        echo $i <= $rating ? '★' : '☆';
-                                                    }
-                                                    ?>
-                                                </span>
-                                                <span><?= number_format($trip['guide_rating'], 1) ?>/5.0</span>
-                                                <span>• <?= $trip['experience'] ?> tahun</span>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <?php endif; ?>
 
                                     <div class="trip-actions">
-                                        <?php if ($available_spots > 0): ?>
-                                            <button class="btn-book" onclick="bookTrip('<?= $trip['id'] ?>')">
-                                                <i class="fas fa-hiking"></i>
-                                                Book Sekarang
-                                            </button>
-                                            <button class="btn-cart" onclick="addToCart('<?= $trip['id'] ?>')">
-                                                <i class="fas fa-cart-plus"></i>
-                                            </button>
-                                        <?php else: ?>
-                                            <button class="btn-book" disabled style="opacity: 0.5; cursor: not-allowed;">
-                                                <i class="fas fa-ban"></i>
-                                                Trip Penuh
-                                            </button>
-                                        <?php endif; ?>
+                                        <button class="btn-book" onclick="bookRegularTicket(<?= $ticket['id'] ?>)">
+                                            <i class="fas fa-hiking"></i>
+                                            Book Sekarang
+                                        </button>
+                                        <button class="btn-cart" onclick="addTicketToCart(<?= $ticket['id'] ?>)">
+                                            <i class="fas fa-cart-plus"></i>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -1047,7 +877,7 @@ $featured_trips = $conn->query("
                 <?php else: ?>
                     <div style="text-align: center; padding: 60px 20px; background: white; border-radius: 15px;">
                         <i class="fas fa-search" style="font-size: 3rem; color: var(--light-text); margin-bottom: 20px;"></i>
-                        <h3 style="color: var(--dark-text); margin-bottom: 10px;">Trip tidak ditemukan</h3>
+                        <h3 style="color: var(--dark-text); margin-bottom: 10px;">Tiket tidak ditemukan</h3>
                         <p style="color: var(--light-text);">Coba ubah filter pencarian atau kata kunci Anda</p>
                         <button onclick="resetFilters()" style="margin-top: 20px; background: var(--accent-green); color: white; border: none; padding: 12px 24px; border-radius: 10px; cursor: pointer;">
                             <i class="fas fa-redo"></i> Reset Filter
@@ -1072,30 +902,73 @@ $featured_trips = $conn->query("
             }
         });
 
-        // Trip booking functions
-        function bookTrip(tripId) {
-            window.location.href = `booking.php?trip_id=${tripId}`;
+        // Function untuk booking paket trip (langsung ke pembayaran)
+        function bookPackageTrip(tripId) {
+            // Konfirmasi dulu
+            if (confirm('Anda akan melakukan booking paket trip ini. Lanjutkan ke pembayaran?')) {
+                // Redirect langsung ke halaman pembayaran untuk paket
+                window.location.href = 'pembayaran.php?type=package&trip_id=' + tripId;
+            }
         }
 
-        function addToCart(tripId) {
+        // Function untuk booking tiket reguler (ke halaman booking biasa)
+        function bookRegularTicket(ticketId) {
+            // Redirect ke halaman booking untuk tiket reguler
+            window.location.href = 'booking.php?ticket_id=' + ticketId;
+        }
+
+        // Function untuk add trip paket ke cart
+        function addTripToCart(tripId) {
             fetch('add_to_cart.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ trip_id: tripId })
+                body: JSON.stringify({ 
+                    trip_id: tripId,
+                    type: 'package',
+                    action: 'add_to_cart'
+                })
             })
             .then(response => response.json())
+            
+        }
+
+        // Function untuk add tiket reguler ke cart
+        function addTicketToCart(ticketId) {
+            fetch('add_to_cart.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    ticket_id: ticketId,
+                    type: 'regular',
+                    action: 'add_to_cart'
+                })
+            })
+            .then(response => response.json())
+            
+        }
+
+        // Function untuk update cart counter (optional)
+        function updateCartCounter() {
+            fetch('get_cart_count.php')
+            .then(response => response.json())
             .then(data => {
-                if (data.success) {
-                    alert('Trip berhasil ditambahkan ke keranjang!');
-                } else {
-                    alert('Gagal menambahkan trip ke keranjang');
+                // Update cart counter di UI jika ada
+                const cartCounter = document.querySelector('.cart-counter');
+                if (cartCounter && data.count) {
+                    cartCounter.textContent = data.count;
+                    cartCounter.style.display = data.count > 0 ? 'block' : 'none';
                 }
+            })
+            .catch(error => {
+                console.error('Error updating cart counter:', error);
             });
         }
 
-
+        // Function untuk reset filters
         function resetFilters() {
             window.location.href = 'dashboard.php';
         }
@@ -1104,15 +977,68 @@ $featured_trips = $conn->query("
         document.addEventListener('DOMContentLoaded', function() {
             if (window.innerWidth <= 767) {
                 console.log('Mobile view active');
-                // Add mobile-specific interactions
+                // Add mobile-specific interactions if needed
             }
+            
+            // Load cart counter on page load
+            updateCartCounter();
         });
 
         // Auto-suggest search (optional enhancement)
         document.getElementById('searchInput').addEventListener('input', function() {
-            // Could implement auto-complete suggestions
+            // Could implement auto-complete suggestions here
+            const searchTerm = this.value.toLowerCase();
+            if (searchTerm.length > 2) {
+                // Implement search suggestions
+                console.log('Searching for:', searchTerm);
+            }
+        });
+
+        // Debug function
+        console.log('Dashboard JavaScript loaded successfully');
+        
+        // Add smooth scrolling for better UX
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Add loading states for buttons
+        function addLoadingState(button) {
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+            button.disabled = true;
+            
+            // Remove loading state after 3 seconds (fallback)
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }, 3000);
+        }
+
+        // Enhanced error handling
+        window.addEventListener('error', function(e) {
+            console.error('JavaScript Error:', e.error);
+        });
+
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl/Cmd + K untuk focus search
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                document.getElementById('searchInput').focus();
+            }
         });
     </script>
 </body>
 </html>
 
+                                    

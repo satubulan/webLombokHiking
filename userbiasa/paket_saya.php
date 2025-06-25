@@ -12,7 +12,7 @@ $user_id = $_SESSION['user_id'];
 
 // Fetch all bookings for this user with status 'confirmed'
 $query = $conn->prepare("
-    SELECT b.*, t.title, t.price, t.start_date, t.end_date, m.name as mountain_name, b.booking_date, b.status
+    SELECT b.*, t.title, t.package_price, t.start_date, t.end_date, m.name as mountain_name, b.booking_date, b.status
     FROM bookings b
     JOIN trips t ON b.trip_id = t.id
     JOIN mountains m ON t.mountain_id = m.id
@@ -194,10 +194,6 @@ $result = $query->get_result();
                     <i class="fas fa-calendar-plus"></i> 
                     Booking Trip
                 </a>
-                <a href="keranjang.php">
-                    <i class="fas fa-shopping-cart"></i> 
-                    Keranjang
-                </a>
                 <a href="status_pembayaran.php">
                     <i class="fas fa-credit-card"></i> 
                     Status Pembayaran
@@ -205,6 +201,10 @@ $result = $query->get_result();
                 <a href="paket_saya.php" class="active">
                     <i class="fas fa-hiking"></i> 
                     Paket Saya
+                </a>
+                <a href="ajukan_guide.php">
+                    <i class="fas fa-user-plus"></i> 
+                    Ajukan Diri Jadi Guide
                 </a>
                 <a href="../logout.php">
                     <i class="fas fa-sign-out-alt"></i> 

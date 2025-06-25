@@ -2,7 +2,7 @@
 $servername = "localhost";
 $username = "root";
 $password = "";
-$database = "lombok_hiking";
+$database = "lohi";
 
 // Koneksi database
 $conn = new mysqli($servername, $username, $password, $database);

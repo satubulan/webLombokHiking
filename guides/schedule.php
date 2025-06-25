@@ -1,4 +1,3 @@
-
 <?php
 session_start();
 require_once '../config.php';
@@ -13,8 +12,8 @@ $user_id = $_SESSION['user_id'];
 $userName = $_SESSION['user_name'];
 
 // Get guide info
-$guide_query = $conn->prepare("SELECT * FROM guides WHERE user_id = ?");
-$guide_query->bind_param("s", $user_id);
+$guide_query = $conn->prepare("SELECT * FROM guide WHERE user_id = ?");
+$guide_query->bind_param("i", $user_id);
 $guide_query->execute();
 $guide_result = $guide_query->get_result();
 $guide_info = $guide_result->fetch_assoc();
@@ -30,7 +29,7 @@ $status_filter = $_GET['status'] ?? 'all';
 // Build query conditions
 $where_conditions = ["t.guide_id = ?"];
 $params = [$guide_id];
-$param_types = "s";
+$param_types = "i";
 
 if ($status_filter !== 'all') {
     if ($status_filter === 'upcoming') {
@@ -52,17 +51,17 @@ if ($month_filter) {
 $where_clause = implode(" AND ", $where_conditions);
 
 // Get trips/schedules for this guide
+// Fixed: Removed references to non-existent columns (duration, meeting_point, participants)
 $schedules_query = $conn->prepare("
-    SELECT 
+    SELECT
         t.*,
         m.name as mountain_name,
         m.height as mountain_height,
-        (SELECT COUNT(*) FROM bookings b WHERE b.trip_id = t.id) as total_bookings,
         (SELECT COUNT(*) FROM bookings b WHERE b.trip_id = t.id AND b.status = 'confirmed') as confirmed_bookings
-    FROM trips t 
-    LEFT JOIN mountains m ON t.mountain_id = m.id 
+    FROM trips t
+    LEFT JOIN mountains m ON t.mountain_id = m.id
     WHERE {$where_clause}
-    ORDER BY t.start_date ASC, t.created_at DESC
+    ORDER BY t.start_date ASC
 ");
 
 if (!empty($params)) {
@@ -74,7 +73,7 @@ $schedules = $schedules_query->get_result()->fetch_all(MYSQLI_ASSOC);
 
 // Get statistics
 $stats_query = $conn->prepare("
-    SELECT 
+    SELECT
         COUNT(*) as total_trips,
         SUM(CASE WHEN t.start_date >= CURDATE() THEN 1 ELSE 0 END) as upcoming_trips,
         SUM(CASE WHEN t.start_date <= CURDATE() AND t.end_date >= CURDATE() THEN 1 ELSE 0 END) as ongoing_trips,
@@ -82,7 +81,7 @@ $stats_query = $conn->prepare("
     FROM trips t
     WHERE t.guide_id = ?
 ");
-$stats_query->bind_param("s", $guide_id);
+$stats_query->bind_param("i", $guide_id);
 $stats_query->execute();
 $stats = $stats_query->get_result()->fetch_assoc();
 ?>
@@ -106,7 +105,7 @@ $stats = $stats_query->get_result()->fetch_assoc();
             flex-wrap: wrap;
             gap: 20px;
         }
-        
+
         .schedule-header div h1 {
             color: #2c3e50;
             margin: 0;
@@ -114,12 +113,12 @@ $stats = $stats_query->get_result()->fetch_assoc();
             align-items: center;
             gap: 15px;
         }
-        
+
         .schedule-header div p {
             color: #6c757d;
             margin: 5px 0 0 0;
         }
-        
+
         .add-trip-btn {
             background: linear-gradient(135deg, #2e8b57, #3cb371);
             color: white;
@@ -134,13 +133,13 @@ $stats = $stats_query->get_result()->fetch_assoc();
             transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(46, 139, 87, 0.3);
         }
-        
+
         .add-trip-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(46, 139, 87, 0.4);
             color: white;
         }
-        
+
         /* Stats Grid - same as other pages */
         .stats-grid {
             display: grid;
@@ -148,7 +147,7 @@ $stats = $stats_query->get_result()->fetch_assoc();
             gap: 20px;
             margin-bottom: 30px;
         }
-        
+
         .stat-card {
             background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
             border: 1px solid #e9ecef;
@@ -162,7 +161,7 @@ $stats = $stats_query->get_result()->fetch_assoc();
             position: relative;
             overflow: hidden;
         }
-        
+
         .stat-card::before {
             content: '';
             position: absolute;
@@ -172,18 +171,18 @@ $stats = $stats_query->get_result()->fetch_assoc();
             height: 100%;
             background: linear-gradient(135deg, #2e8b57, #3cb371);
         }
-        
+
         .stat-card:hover {
             transform: translateY(-3px);
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
         }
-        
+
         .stat-card i {
             font-size: 2.5rem;
             color: #2e8b57;
             opacity: 0.8;
         }
-        
+
         .stat-card div h3 {
             margin: 0 0 5px 0;
             color: #6c757d;
@@ -191,14 +190,14 @@ $stats = $stats_query->get_result()->fetch_assoc();
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        
+
         .stat-card div p {
             margin: 0;
             font-size: 2rem;
             font-weight: 700;
             color: #2c3e50;
         }
-        
+
         /* Filters Section */
         .filters-section {
             background: white;
@@ -207,7 +206,7 @@ $stats = $stats_query->get_result()->fetch_assoc();
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
             margin-bottom: 30px;
         }
-        
+
         .filters-section h3 {
             margin: 0 0 20px 0;
             color: #2c3e50;
@@ -215,21 +214,21 @@ $stats = $stats_query->get_result()->fetch_assoc();
             align-items: center;
             gap: 10px;
         }
-        
+
         .filters-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
             align-items: end;
         }
-        
+
         .filter-group label {
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
             color: #2c3e50;
         }
-        
+
         .filter-group select,
         .filter-group input {
             width: 100%;
@@ -239,19 +238,19 @@ $stats = $stats_query->get_result()->fetch_assoc();
             font-size: 14px;
             transition: border-color 0.3s ease;
         }
-        
+
         .filter-group select:focus,
         .filter-group input:focus {
             outline: none;
             border-color: #2e8b57;
             box-shadow: 0 0 0 3px rgba(46, 139, 87, 0.1);
         }
-        
+
         .filter-actions {
             display: flex;
             gap: 10px;
         }
-        
+
         .filter-btn {
             padding: 12px 20px;
             border: none;
@@ -264,22 +263,22 @@ $stats = $stats_query->get_result()->fetch_assoc();
             align-items: center;
             gap: 8px;
         }
-        
+
         .btn-filter {
             background: linear-gradient(135deg, #2e8b57, #3cb371);
             color: white;
             box-shadow: 0 4px 15px rgba(46, 139, 87, 0.3);
         }
-        
+
         .btn-reset {
             background: #6c757d;
             color: white;
         }
-        
+
         .filter-btn:hover {
             transform: translateY(-2px);
         }
-        
+
         /* Schedule Grid */
         .schedules-grid {
             display: grid;
@@ -287,7 +286,7 @@ $stats = $stats_query->get_result()->fetch_assoc();
             gap: 25px;
             margin-bottom: 30px;
         }
-        
+
         .schedule-card {
             background: white;
             border-radius: 15px;
@@ -296,18 +295,18 @@ $stats = $stats_query->get_result()->fetch_assoc();
             transition: all 0.3s ease;
             border: 1px solid #e9ecef;
         }
-        
+
         .schedule-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
         }
-        
+
         .schedule-header-card {
             padding: 20px;
             background: linear-gradient(135deg, rgba(46, 139, 87, 0.1), rgba(60, 179, 113, 0.1));
             border-bottom: 1px solid #e9ecef;
         }
-        
+
         .trip-status {
             display: inline-block;
             padding: 6px 12px;
@@ -318,25 +317,25 @@ $stats = $stats_query->get_result()->fetch_assoc();
             letter-spacing: 0.5px;
             margin-bottom: 10px;
         }
-        
+
         .status-upcoming {
             background: #e3f2fd;
             color: #1976d2;
             border: 1px solid #bbdefb;
         }
-        
+
         .status-ongoing {
             background: #e8f5e8;
             color: #2e7d32;
             border: 1px solid #c8e6c9;
         }
-        
+
         .status-completed {
             background: #f3e5f5;
             color: #7b1fa2;
             border: 1px solid #e1bee7;
         }
-        
+
         .trip-title {
             font-size: 1.3rem;
             font-weight: 700;
@@ -344,7 +343,7 @@ $stats = $stats_query->get_result()->fetch_assoc();
             color: #2c3e50;
             line-height: 1.3;
         }
-        
+
         .mountain-info {
             color: #2e8b57;
             font-weight: 600;
@@ -353,7 +352,7 @@ $stats = $stats_query->get_result()->fetch_assoc();
             align-items: center;
             gap: 8px;
         }
-        
+
         .schedule-dates {
             color: #6c757d;
             font-size: 0.9rem;
@@ -361,37 +360,37 @@ $stats = $stats_query->get_result()->fetch_assoc();
             align-items: center;
             gap: 8px;
         }
-        
+
         .schedule-content {
             padding: 20px;
         }
-        
+
         .schedule-meta {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 15px;
             margin-bottom: 20px;
         }
-        
+
         .meta-item {
             display: flex;
             flex-direction: column;
             gap: 5px;
         }
-        
+
         .meta-label {
             font-size: 0.8rem;
             color: #6c757d;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        
+
         .meta-value {
             font-weight: 600;
             color: #2c3e50;
         }
-        
-        .participants-info {
+
+        .bookings-info {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -400,13 +399,13 @@ $stats = $stats_query->get_result()->fetch_assoc();
             border-radius: 8px;
             margin-bottom: 15px;
         }
-        
-        .participants-count {
+
+        .bookings-count {
             font-size: 0.9rem;
             color: #6c757d;
         }
-        
-        .participants-bar {
+
+        .bookings-bar {
             width: 100px;
             height: 6px;
             background: #e9ecef;
@@ -414,19 +413,19 @@ $stats = $stats_query->get_result()->fetch_assoc();
             overflow: hidden;
             margin-left: 10px;
         }
-        
-        .participants-fill {
+
+        .bookings-fill {
             height: 100%;
             background: linear-gradient(90deg, #2e8b57, #3cb371);
             transition: width 0.3s ease;
         }
-        
+
         .schedule-actions {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
         }
-        
+
         .action-btn {
             padding: 8px 16px;
             border: none;
@@ -443,22 +442,22 @@ $stats = $stats_query->get_result()->fetch_assoc();
             justify-content: center;
             min-width: 80px;
         }
-        
+
         .btn-primary-action {
             background: #2e8b57;
             color: white;
         }
-        
+
         .btn-secondary-action {
             background: #6c757d;
             color: white;
         }
-        
+
         .action-btn:hover {
             transform: scale(1.05);
             opacity: 0.9;
         }
-        
+
         /* Empty State */
         .empty-state {
             text-align: center;
@@ -467,23 +466,23 @@ $stats = $stats_query->get_result()->fetch_assoc();
             border-radius: 15px;
             box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
         }
-        
+
         .empty-state i {
             font-size: 4rem;
             color: #e9ecef;
             margin-bottom: 20px;
         }
-        
+
         .empty-state h3 {
             color: #6c757d;
             margin-bottom: 15px;
         }
-        
+
         .empty-state p {
             color: #adb5bd;
             margin-bottom: 25px;
         }
-        
+
         /* Alerts */
         .alert {
             padding: 15px;
@@ -494,69 +493,69 @@ $stats = $stats_query->get_result()->fetch_assoc();
             align-items: center;
             gap: 10px;
         }
-        
+
         .alert-success {
             background: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
         }
-        
+
         .alert-error {
             background: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
-        
+
         /* Responsive Design */
         @media (max-width: 767px) {
             .admin-container {
                 flex-direction: column;
             }
-            
+
             .sidebar {
                 width: 100%;
                 height: auto;
                 order: 2;
             }
-            
+
             .main {
                 order: 1;
                 padding: 15px;
             }
-            
+
             .schedule-header {
                 flex-direction: column;
                 align-items: stretch;
             }
-            
+
             .stats-grid {
                 grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
                 gap: 15px;
             }
-            
+
             .schedules-grid {
                 grid-template-columns: 1fr;
                 gap: 20px;
             }
-            
+
             .filters-grid {
                 grid-template-columns: 1fr;
             }
-            
+
             .schedule-meta {
                 grid-template-columns: 1fr;
             }
-            
+
             .schedule-actions {
                 flex-direction: column;
             }
-            
+
             .action-btn {
                 flex: auto;
                 min-width: auto;
             }
         }
-        
+
         /* Large Desktop */
         @media (min-width: 1440px) {
             .main {
@@ -564,7 +563,7 @@ $stats = $stats_query->get_result()->fetch_assoc();
                 margin: 0 auto;
                 padding: 30px 40px;
             }
-            
+
             .schedules-grid {
                 grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
                 gap: 30px;
@@ -669,9 +668,15 @@ $stats = $stats_query->get_result()->fetch_assoc();
             <!-- Schedule Grid -->
             <?php if (count($schedules) > 0): ?>
                 <div class="schedules-grid">
-                    <?php foreach ($schedules as $schedule): 
-                        $participants_percentage = $schedule['max_participants'] > 0 ? ($schedule['total_bookings'] / $schedule['max_participants']) * 100 : 0;
-                        
+                    <?php foreach ($schedules as $schedule):
+                        // Calculate duration dynamically
+                        $start_date_obj = new DateTime($schedule['start_date']);
+                        $end_date_obj = new DateTime($schedule['end_date']);
+                        $duration = $start_date_obj->diff($end_date_obj)->days + 1;
+
+                        $total_participants_confirmed = $schedule['total_participants_confirmed'] ?? 0;
+                        $participants_percentage = $schedule['capacity'] > 0 ? ($total_participants_confirmed / $schedule['capacity']) * 100 : 0;
+
                         // Determine status
                         $current_date = date('Y-m-d');
                         if ($schedule['start_date'] > $current_date) {
@@ -690,55 +695,56 @@ $stats = $stats_query->get_result()->fetch_assoc();
                                 <div class="trip-status status-<?php echo $status; ?>">
                                     <?php echo $status_text; ?>
                                 </div>
-                                
+
                                 <h3 class="trip-title"><?php echo htmlspecialchars($schedule['title']); ?></h3>
-                                
+
                                 <div class="mountain-info">
                                     <i class="fas fa-mountain"></i>
                                     <span><?php echo htmlspecialchars($schedule['mountain_name']); ?> (<?php echo $schedule['mountain_height']; ?>m)</span>
                                 </div>
-                                
+
                                 <div class="schedule-dates">
                                     <i class="fas fa-calendar-alt"></i>
                                     <span><?php echo date('d M', strtotime($schedule['start_date'])); ?> - <?php echo date('d M Y', strtotime($schedule['end_date'])); ?></span>
                                 </div>
                             </div>
-                            
+
                             <div class="schedule-content">
                                 <div class="schedule-meta">
                                     <div class="meta-item">
                                         <span class="meta-label">Durasi</span>
-                                        <span class="meta-value"><?php echo $schedule['duration']; ?> hari</span>
+                                        <span class="meta-value"><?php echo $duration; ?> hari</span>
                                     </div>
                                     <div class="meta-item">
                                         <span class="meta-label">Harga</span>
-                                        <span class="meta-value">Rp <?php echo number_format($schedule['price'], 0, ',', '.'); ?></span>
+                                        <span class="meta-value">Rp <?php echo number_format($schedule['package_price'], 0, ',', '.'); ?></span>
                                     </div>
                                     <div class="meta-item">
                                         <span class="meta-label">Max Peserta</span>
-                                        <span class="meta-value"><?php echo $schedule['max_participants']; ?> orang</span>
+                                        <span class="meta-value"><?php echo $schedule['capacity']; ?> orang</span>
                                     </div>
-                                    <div class="meta-item">
+                                    <!-- Removed Meeting Point as it's not in your schema -->
+                                    <!-- <div class="meta-item">
                                         <span class="meta-label">Titik Kumpul</span>
                                         <span class="meta-value"><?php echo htmlspecialchars(substr($schedule['meeting_point'], 0, 20)); ?>...</span>
-                                    </div>
+                                    </div> -->
                                 </div>
-                                
+
                                 <div class="participants-info">
                                     <span class="participants-count">
-                                        <strong><?php echo $schedule['total_bookings']; ?></strong> dari <strong><?php echo $schedule['max_participants']; ?></strong> peserta
+                                        <strong><?php echo $total_participants_confirmed; ?></strong> dari <strong><?php echo $schedule['capacity']; ?></strong> peserta
                                     </span>
                                     <div class="participants-bar">
                                         <div class="participants-fill" style="width: <?php echo min($participants_percentage, 100); ?>%"></div>
                                     </div>
                                 </div>
-                                
+
                                 <div class="schedule-actions">
-                                    <a href="trips.php" class="action-btn btn-primary-action">
+                                    <a href="trip_detail.php?id=<?php echo $schedule['id']; ?>" class="action-btn btn-primary-action">
                                         <i class="fas fa-eye"></i>
-                                        <span>Lihat Trip</span>
+                                        <span>Lihat Detail</span>
                                     </a>
-                                    <a href="bookings.php" class="action-btn btn-secondary-action">
+                                    <a href="bookings.php?trip_id=<?php echo $schedule['id']; ?>" class="action-btn btn-secondary-action">
                                         <i class="fas fa-users"></i>
                                         <span>Peserta</span>
                                     </a>
@@ -782,4 +788,3 @@ $stats = $stats_query->get_result()->fetch_assoc();
     </script>
 </body>
 </html>
-

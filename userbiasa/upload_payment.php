@@ -241,34 +241,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 Lombok Hiking
             </div>
             <nav>
-                <a href="dashboard.php">
-                    <i class="fas fa-tachometer-alt"></i> 
-                    Dashboard
-                </a>
-                <a href="profile.php">
-                    <i class="fas fa-user"></i> 
-                    Profil Saya
-                </a>
-                <a href="booking.php">
-                    <i class="fas fa-calendar-plus"></i> 
-                    Booking Trip
-                </a>
-                <a href="keranjang.php">
-                    <i class="fas fa-shopping-cart"></i> 
-                    Keranjang
-                </a>
-                <a href="status_pembayaran.php">
-                    <i class="fas fa-credit-card"></i> 
-                    Status Pembayaran
-                </a>
-                <a href="paket_saya.php">
-                    <i class="fas fa-hiking"></i> 
-                    Paket Saya
-                </a>
-                <a href="../logout.php">
-                    <i class="fas fa-sign-out-alt"></i> 
-                    Logout
-                </a>
+                <a href="dashboard.php" class="nav-link"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                <a href="profile.php" class="nav-link"><i class="fas fa-user"></i> Profil Saya</a>
+                <a href="booking.php" class="nav-link"><i class="fas fa-calendar-plus"></i> Booking Trip</a>
+                <a href="status_pembayaran.php" class="nav-link"><i class="fas fa-credit-card"></i> Status Pembayaran</a>
+                <a href="paket_saya.php" class="nav-link"><i class="fas fa-hiking"></i> Paket Saya</a>
+                <a href="ajukan_guide.php" class="nav-link"><i class="fas fa-user-plus"></i> Ajukan Diri Jadi Guide</a>
+                <a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
             </nav>
         </aside>
 

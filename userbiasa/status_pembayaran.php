@@ -2,68 +2,116 @@
 session_start();
 require_once '../config.php';
 
-// Check if user is logged in and has user role
+// Check if user is logged in
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'user') {
     header('Location: ../views/login.php');
     exit();
 }
 
 $user_id = $_SESSION['user_id'];
-$booking_id = isset($_GET['booking_id']) ? $_GET['booking_id'] : '';
+$userName = $_SESSION['user_name'];
 
-// Fetch booking details for the current user and booking id
-$booking_query = $conn->prepare("SELECT b.*, t.title, t.price, t.start_date, t.end_date
-                                FROM bookings b
-                                JOIN trips t ON b.trip_id = t.id
-                                WHERE b.user_id = ? AND b.id = ?");
-$booking_query->bind_param("si", $user_id, $booking_id);
-$booking_query->execute();
-$booking_result = $booking_query->get_result();
+// Get payment code from URL or show all payments
+$payment_code = $_GET['payment_code'] ?? '';
 
-if ($booking_result->num_rows === 0) {
-    header('Location: dashboard.php'); // Redirect if no booking found
-    exit();
+// Build query based on whether we have a specific payment code
+if (!empty($payment_code)) {
+    // Show specific payment
+    $query = "
+        SELECT b.*, p.payment_code, p.amount, p.payment_date, p.status as payment_status, p.payment_proof,
+               COALESCE(t.title, mt.title) as trip_title,
+               COALESCE(t.package_price, mt.price) as trip_price,
+               COALESCE(t.start_date, 'TBD') as start_date,
+               COALESCE(t.end_date, 'TBD') as end_date,
+               m.name as mountain_name,
+               u.name as guide_name
+        FROM bookings b
+        JOIN pembayaran p ON b.id = p.booking_id
+        LEFT JOIN trips t ON b.trip_id = t.id
+        LEFT JOIN mountain_tickets mt ON b.mountain_ticket_id = mt.id
+        LEFT JOIN mountains m ON COALESCE(t.mountain_id, mt.mountain_id) = m.id
+        LEFT JOIN users u ON b.selected_guide_id = u.id
+        WHERE b.user_id = ? AND p.payment_code = ?
+        ORDER BY b.booking_date DESC
+    ";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("is", $user_id, $payment_code);
+} else {
+    // Show all payments for user
+    $query = "
+        SELECT b.*, p.payment_code, p.amount, p.payment_date, p.status as payment_status, p.payment_proof,
+               COALESCE(t.title, mt.title) as trip_title,
+               COALESCE(t.package_price, mt.price) as trip_price,
+               COALESCE(t.start_date, 'TBD') as start_date,
+               COALESCE(t.end_date, 'TBD') as end_date,
+               m.name as mountain_name,
+               u.name as guide_name
+        FROM bookings b
+        JOIN pembayaran p ON b.id = p.booking_id
+        LEFT JOIN trips t ON b.trip_id = t.id
+        LEFT JOIN mountain_tickets mt ON b.mountain_ticket_id = mt.id
+        LEFT JOIN mountains m ON COALESCE(t.mountain_id, mt.mountain_id) = m.id
+        LEFT JOIN users u ON b.selected_guide_id = u.id
+        WHERE b.user_id = ?
+        ORDER BY b.booking_date DESC
+    ";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("i", $user_id);
 }
 
-$booking = $booking_result->fetch_assoc();
-$error_message = '';
-$success_message = '';
+$stmt->execute();
+$payments_result = $stmt->get_result();
 
-// Handle file upload for payment proof
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['payment_proof']) && $_FILES['payment_proof']['error'] == 0) {
-    $file_tmp = $_FILES['payment_proof']['tmp_name'];
-    $file_name = $_FILES['payment_proof']['name'];
-    $file_size = $_FILES['payment_proof']['size'];
-    $file_type = $_FILES['payment_proof']['type'];
-
-    // Validating file type and size
-    $allowed_types = ['image/jpeg', 'image/png', 'application/pdf'];
-    if (!in_array($file_type, $allowed_types)) {
-        $error_message = "Hanya file gambar (JPEG, PNG) atau PDF yang diizinkan!";
-    } elseif ($file_size > 5000000) { // Max file size 5MB
-        $error_message = "Ukuran file terlalu besar, maksimal 5MB!";
-    } else {
-        // Save the file
-        $upload_dir = 'uploads/payment_proofs/';
-        if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0777, true); // Create directory if not exists
-        }
-
-        $file_path = $upload_dir . basename($file_name);
-        if (move_uploaded_file($file_tmp, $file_path)) {
-            // Update the booking record with the payment proof
-            $update_query = $conn->prepare("UPDATE bookings SET payment_proof = ?, status = 'Menunggu Verifikasi' WHERE id = ?");
-            $update_query->bind_param("si", $file_path, $booking_id);
-
-            if ($update_query->execute()) {
-                $success_message = "Bukti pembayaran berhasil di-upload. Menunggu verifikasi!";
+// Handle payment proof upload
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_proof'])) {
+    $booking_id = $_POST['booking_id'];
+    
+    // Verify booking belongs to user
+    $verify_query = $conn->prepare("SELECT id FROM bookings WHERE id = ? AND user_id = ?");
+    $verify_query->bind_param("ii", $booking_id, $user_id);
+    $verify_query->execute();
+    
+    if ($verify_query->get_result()->num_rows > 0) {
+        if (isset($_FILES['payment_proof']) && $_FILES['payment_proof']['error'] === 0) {
+            $allowed_types = ['image/jpeg', 'image/png', 'image/jpg'];
+            $file_type = $_FILES['payment_proof']['type'];
+            
+            if (in_array($file_type, $allowed_types)) {
+                $upload_dir = '../uploads/payments/';
+                if (!file_exists($upload_dir)) {
+                    mkdir($upload_dir, 0777, true);
+                }
+                
+                $file_extension = pathinfo($_FILES['payment_proof']['name'], PATHINFO_EXTENSION);
+                $file_name = 'payment_' . $booking_id . '_' . time() . '.' . $file_extension;
+                $upload_path = $upload_dir . $file_name;
+                
+                if (move_uploaded_file($_FILES['payment_proof']['tmp_name'], $upload_path)) {
+                    // Update payment record
+                    $update_query = $conn->prepare("UPDATE pembayaran SET payment_proof = ?, payment_date = NOW() WHERE booking_id = ?");
+                    $update_query->bind_param("si", $file_name, $booking_id);
+                    
+                    if ($update_query->execute()) {
+                        $_SESSION['success'] = "Bukti pembayaran berhasil diupload. Menunggu verifikasi admin.";
+                    } else {
+                        $_SESSION['error'] = "Gagal menyimpan bukti pembayaran.";
+                    }
+                } else {
+                    $_SESSION['error'] = "Gagal mengupload file.";
+                }
             } else {
-                $error_message = "Terjadi kesalahan saat memperbarui bukti pembayaran.";
+                $_SESSION['error'] = "Format file tidak didukung. Gunakan JPG, JPEG, atau PNG.";
             }
         } else {
-            $error_message = "Gagal meng-upload file!";
+            $_SESSION['error'] = "Pilih file bukti pembayaran terlebih dahulu.";
         }
+    } else {
+        $_SESSION['error'] = "Booking tidak ditemukan.";
     }
+    
+    // Redirect to prevent form resubmission
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit();
 }
 ?>
 
@@ -74,10 +122,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['payment_proof']) && 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Status Pembayaran - Lombok Hiking</title>
     <link rel="stylesheet" href="../assets/css/style.css">
-    <link rel="stylesheet" href="../assets/css/index.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        /* Status Pembayaran Styles */
         :root {
             --primary-green: #2e8b57;
             --secondary-green: #3cb371;
@@ -85,282 +131,436 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['payment_proof']) && 
             --accent-green: #10b981;
             --dark-text: #1f2937;
             --light-text: #6b7280;
-            --danger-red: #dc2626;
+            --danger-red: #ef4444;
             --warning-yellow: #f59e0b;
+            --success-green: #22c55e;
         }
 
-        .admin-container {
-            display: flex;
-            min-height: 100vh;
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #f8fafc;
+            margin: 0;
+            padding: 0;
         }
 
-        .sidebar {
-            width: 280px;
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
             background: linear-gradient(135deg, var(--primary-green), var(--secondary-green));
             color: white;
-            padding: 0;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-        }
-
-        .logo {
-            padding: 30px 25px;
-            font-size: 1.5rem;
-            font-weight: bold;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            background: rgba(255,255,255,0.05);
-        }
-
-        .sidebar nav {
-            padding: 20px 0;
-        }
-
-        .sidebar nav a {
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
             display: flex;
             align-items: center;
             gap: 15px;
-            padding: 15px 25px;
-            color: rgba(255,255,255,0.8);
-            text-decoration: none;
-            transition: all 0.3s ease;
-            border-left: 4px solid transparent;
         }
 
-        .sidebar nav a:hover,
-        .sidebar nav a.active {
-            background: rgba(255,255,255,0.1);
-            color: white;
-            border-left-color: white;
-        }
-
-        .sidebar nav a i {
-            width: 20px;
-            text-align: center;
-        }
-
-        .main {
-            flex: 1;
-            padding: 30px;
-            overflow-y: auto;
-        }
-
-        .status-container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .page-header {
-            background: linear-gradient(135deg, var(--primary-green), var(--secondary-green));
-            color: white;
-            padding: 40px;
-            border-radius: 20px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(46, 139, 87, 0.3);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .page-header h2 {
+        .header h1 {
             margin: 0;
-            font-size: 2rem;
-            font-weight: 700;
+            font-size: 1.8rem;
         }
 
-        .status-content {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
-            padding: 30px;
-        }
-
-        .status-content h3 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--dark-text);
-            margin-bottom: 20px;
-        }
-
-        .status-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 15px;
-        }
-
-        .status-item span {
-            font-size: 1rem;
-            color: var(--light-text);
-        }
-
-        .status-item strong {
-            color: var(--dark-text);
-            font-size: 1.1rem;
-        }
-
-        .status-item .status-label {
-            font-weight: 700;
-            font-size: 1.1rem;
-        }
-
-        .upload-section {
-            margin-top: 30px;
-            background: var(--light-green);
-            padding: 20px;
-            border-radius: 12px;
-        }
-
-        .upload-section input {
-            margin-bottom: 20px;
-        }
-
-        .upload-section button {
-            padding: 12px 30px;
-            background: var(--primary-green);
+        .back-btn {
+            background: rgba(255,255,255,0.2);
             color: white;
             border: none;
+            padding: 10px 15px;
             border-radius: 8px;
-            font-size: 1rem;
             cursor: pointer;
-            transition: background 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
         }
 
-        .upload-section button:hover {
-            background: var(--secondary-green);
+        .back-btn:hover {
+            background: rgba(255,255,255,0.3);
         }
 
         .alert {
-            padding: 15px 20px;
-            border-radius: 12px;
+            padding: 15px;
+            border-radius: 10px;
             margin-bottom: 20px;
-            font-weight: 500;
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
-        .alert-success {
+        .alert.error {
+            background: #fef2f2;
+            color: var(--danger-red);
+            border: 1px solid #fecaca;
+        }
+
+        .alert.success {
+            background: #f0fdf4;
+            color: var(--success-green);
+            border: 1px solid #bbf7d0;
+        }
+
+        .payment-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border-left: 5px solid var(--accent-green);
+        }
+
+        .payment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .payment-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--dark-text);
+            margin: 0;
+        }
+
+        .payment-code {
+            background: var(--light-green);
+            color: var(--accent-green);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-family: monospace;
+        }
+
+        .status-badge {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .status-badge.unpaid {
+            background: #fef3c7;
+            color: var(--warning-yellow);
+        }
+
+        .status-badge.paid {
             background: #d1fae5;
-            color: #065f46;
-            border: 1px solid #a7f3d0;
+            color: var(--success-green);
         }
 
-        .alert-error {
+        .status-badge.rejected {
             background: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #fca5a5;
+            color: var(--danger-red);
         }
 
-        .btn {
-            padding: 12px 30px;
-            background: var(--primary-green);
-            color: white;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
+        .payment-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .detail-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .detail-label {
+            font-size: 0.9rem;
+            color: var(--light-text);
+            margin-bottom: 5px;
+        }
+
+        .detail-value {
+            font-weight: 600;
+            color: var(--dark-text);
+            font-size: 1.1rem;
+        }
+
+        .payment-amount {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        .upload-section {
+            background: var(--light-green);
+            padding: 20px;
+            border-radius: 12px;
             margin-top: 20px;
         }
 
-        .btn:hover {
-            background: var(--secondary-green);
+        .upload-form {
+            display: flex;
+            gap: 15px;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+
+        .file-input-group {
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .file-input-group label {
+            display: block;
+            font-weight: 600;
+            color: var(--dark-text);
+            margin-bottom: 8px;
+        }
+
+        .file-input {
+            width: 100%;
+            padding: 10px;
+            border: 2px dashed var(--accent-green);
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-input:hover {
+            border-color: var(--primary-green);
+            background: #f9fafb;
+        }
+
+        .upload-btn {
+            background: var(--accent-green);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-btn:hover {
+            background: var(--primary-green);
+        }
+
+        .bank-info {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+        }
+
+        .bank-info h4 {
+            color: var(--warning-yellow);
+            margin: 0 0 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .bank-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .bank-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .bank-name {
+            font-weight: 700;
+            color: var(--dark-text);
+            margin-bottom: 5px;
+        }
+
+        .bank-number {
+            font-family: monospace;
+            font-size: 1.1rem;
+            color: var(--accent-green);
+            margin-bottom: 5px;
+        }
+
+        .bank-holder {
+            font-size: 0.9rem;
+            color: var(--light-text);
+        }
+
+        .copy-btn {
+            background: none;
+            border: 1px solid var(--accent-green);
+            color: var(--accent-green);
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-top: 5px;
+        }
+
+        .copy-btn:hover {
+            background: var(--accent-green);
+            color: white;
+        }
+
+        .proof-image {
+            max-width: 200px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .no-payments {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 15px;
+            color: var(--light-text);
+        }
+
+        .no-payments i {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            color: var(--light-text);
+        }
+
+        @media (max-width: 768px) {
+            .payment-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .payment-details {
+                grid-template-columns: 1fr;
+            }
+            
+            .upload-form {
+                flex-direction: column;
+            }
+            
+            .bank-details {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="admin-container">
-        <aside class="sidebar">
-            <div class="logo">
-                <i class="fas fa-mountain"></i>
-                Lombok Hiking
+<div class="admin-container">
+    <aside class="sidebar">
+        <div class="logo">
+            <i class="fas fa-mountain"></i>
+            Lombok Hiking
+        </div>
+        <nav>
+            <a href="dashboard.php" class="nav-link"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+            <a href="profile.php" class="nav-link"><i class="fas fa-user"></i> Profil Saya</a>
+            <a href="booking.php" class="nav-link"><i class="fas fa-calendar-plus"></i> Booking Trip</a>
+            <a href="status_pembayaran.php" class="nav-link active"><i class="fas fa-credit-card"></i> Status Pembayaran</a>
+            <a href="paket_saya.php" class="nav-link"><i class="fas fa-hiking"></i> Paket Saya</a>
+            <a href="ajukan_guide.php" class="nav-link"><i class="fas fa-user-plus"></i> Ajukan Diri Jadi Guide</a>
+            <a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </nav>
+    </aside>
+    <main class="main">
+        <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <a href="dashboard.php" class="back-btn">
+                <i class="fas fa-arrow-left"></i>
+                Kembali
+            </a>
+            <h1>Status Pembayaran</h1>
+        </div>
+
+        <!-- Error/Success Messages -->
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="alert error">
+                <i class="fas fa-exclamation-circle"></i>
+                <?= htmlspecialchars($_SESSION['error']) ?>
             </div>
-            <nav>
-                <a href="dashboard.php">
-                    <i class="fas fa-tachometer-alt"></i> 
-                    Dashboard
-                </a>
-                <a href="profile.php">
-                    <i class="fas fa-user"></i> 
-                    Profil Saya
-                </a>
-                <a href="booking.php">
-                    <i class="fas fa-calendar-plus"></i> 
-                    Booking Trip
-                </a>
-                <a href="keranjang.php">
-                    <i class="fas fa-shopping-cart"></i> 
-                    Keranjang
-                </a>
-                <a href="status_pembayaran.php" class="active">
-                    <i class="fas fa-credit-card"></i> 
-                    Status Pembayaran
-                </a>
-                <a href="paket_saya.php">
-                    <i class="fas fa-hiking"></i> 
-                    Paket Saya
-                </a>
-                <a href="../logout.php">
-                    <i class="fas fa-sign-out-alt"></i> 
-                    Logout
-                </a>
-            </nav>
-        </aside>
+            <?php unset($_SESSION['error']); ?>
+        <?php endif; ?>
 
-        <main class="main">
-            <div class="status-container">
-                <div class="page-header">
-                    <h2>Status Pembayaran Trip</h2>
+        <?php if (isset($_SESSION['success'])): ?>
+            <div class="alert success">
+                <i class="fas fa-check-circle"></i>
+                <?= htmlspecialchars($_SESSION['success']) ?>
+            </div>
+            <?php unset($_SESSION['success']); ?>
+        <?php endif; ?>
+
+                <!-- Payment Details -->
+        <?php if ($payments_result && $payments_result->num_rows > 0): ?>
+            <?php while ($payment = $payments_result->fetch_assoc()): ?>
+            <div class="payment-card">
+                <div class="payment-header">
+                    <h2 class="payment-title"><?= htmlspecialchars($payment['trip_title']) ?></h2>
+                    <div class="payment-code"><b>Kode Pembayaran:</b> <?= htmlspecialchars($payment['payment_code']) ?></div>
+                    <div class="status-badge <?= $payment['payment_status'] === 'unpaid' ? 'unpaid' : 'paid' ?>">
+                        <?= ucfirst($payment['payment_status']) ?>
+                    </div>
                 </div>
-                
-                <!-- Display success/error messages -->
-                <?php if ($success_message): ?>
-                    <div class="alert alert-success">
-                        <i class="fas fa-check-circle"></i>
-                        <?= htmlspecialchars($success_message) ?>
-                    </div>
-                <?php endif; ?>
-                <?php if ($error_message): ?>
-                    <div class="alert alert-error">
-                        <i class="fas fa-exclamation-circle"></i>
-                        <?= htmlspecialchars($error_message) ?>
-                    </div>
-                <?php endif; ?>
 
-                <div class="status-content">
-                    <h3>Detail Booking</h3>
-
-                    <div class="status-item">
-                        <span class="status-label">Trip:</span>
-                        <strong><?= htmlspecialchars($booking['title']) ?></strong>
-                    </div>
-                    <div class="status-item">
-                        <span class="status-label">Tanggal Trip:</span>
-                        <strong><?= date('d M Y', strtotime($booking['start_date'])) ?> - <?= date('d M Y', strtotime($booking['end_date'])) ?></strong>
-                    </div>
-                    <div class="status-item">
-                        <span class="status-label">Total Pembayaran:</span>
-                        <strong>Rp <?= number_format($booking['total_price'], 0, ',', '.') ?></strong>
-                    </div>
-                    <div class="status-item">
-                        <span class="status-label">Status Pembayaran:</span>
-                        <strong><?= htmlspecialchars($booking['status']) ?></strong>
-                    </div>
+                <div class="payment-details">
                     
-                    <?php if ($booking['status'] === 'Menunggu Pembayaran'): ?>
-                        <div class="upload-section">
-                            <h3>Upload Bukti Pembayaran</h3>
-                            <form action="status_pembayaran.php?booking_id=<?= $booking_id ?>" method="POST" enctype="multipart/form-data">
-                                <label for="payment_proof">Pilih Bukti Pembayaran (JPEG, PNG, PDF)</label>
-                                <input type="file" name="payment_proof" id="payment_proof" required>
-                                <button type="submit">Upload Bukti Pembayaran</button>
-                            </form>
-                        </div>
-                    <?php elseif ($booking['payment_proof']): ?>
-                        <h3>Bukti Pembayaran</h3>
-                        <p><a href="../<?= $booking['payment_proof'] ?>" target="_blank">Lihat Bukti Pembayaran</a></p>
-                    <?php endif; ?>
-
-                    <a href="dashboard.php" class="btn">Kembali ke Dashboard</a>
+                    <div class="detail-group">
+                        <span class="detail-label">Total Pembayaran:</span>
+                        <span class="payment-amount">Rp <?= number_format($payment['amount'], 0, ',', '.') ?></span>
+                    </div>
+                    <div class="detail-group">
+                        <span class="detail-label">Tanggal Pembayaran:</span>
+                        <span class="detail-value"><?= date('d M Y', strtotime($payment['payment_date'])) ?></span>
+                    </div>
+                    <div class="detail-group">
+                        <span class="detail-label">Status Pembayaran:</span>
+                        <span class="detail-value"><?= ucfirst($payment['payment_status']) ?></span>
+                    </div>
                 </div>
+
+                <!-- Upload Payment Proof -->
+                <?php if ($payment['payment_status'] === 'unpaid'): ?>
+                <div class="upload-section">
+                    <h4><i class="fas fa-upload"></i> Upload Bukti Pembayaran</h4>
+                    <form method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="booking_id" value="<?= $payment['id'] ?>">
+                        <div class="upload-form">
+                            <div class="file-input-group">
+                                <label for="payment_proof">Pilih file (JPG, PNG):</label>
+                                <input type="file" name="payment_proof" id="payment_proof" class="file-input" required>
+                            </div>
+                            <button type="submit" name="upload_proof" class="upload-btn">
+                                <i class="fas fa-upload"></i> Upload
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <?php endif; ?>
+
+                <!-- Payment Proof Display -->
+                <?php if ($payment['payment_proof']): ?>
+                <div class="proof-section">
+                    <h4><i class="fas fa-file-image"></i> Bukti Pembayaran:</h4>
+                    <img src="../uploads/payments/<?= htmlspecialchars($payment['payment_proof']) ?>" alt="Bukti Pembayaran" class="proof-image">
+                </div>
+                <?php endif; ?>
             </div>
-        </main>
+            <?php endwhile; ?>
+        <?php else: ?>
+            <div class="no-payments">
+                <i class="fas fa-exclamation-circle"></i>
+                <h3>Tidak ada pembayaran yang ditemukan</h3>
+                <p>Silakan lakukan booking terlebih dahulu untuk melihat status pembayaran.</p>
+            </div>
+        <?php endif; ?>
+
     </div>
+    </main>
+</div>
 </body>
 </html>

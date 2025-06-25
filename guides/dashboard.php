@@ -12,11 +12,12 @@ $user_id = $_SESSION['user_id'];
 $userName = $_SESSION['user_name'];
 
 // Get guide info
-$guide_query = $conn->prepare("SELECT * FROM guides WHERE user_id = ?");
+$guide_query = $conn->prepare("SELECT * FROM guide WHERE user_id = ?");
 $guide_query->bind_param("s", $user_id);
 $guide_query->execute();
 $guide_result = $guide_query->get_result();
 $guide_info = $guide_result->fetch_assoc();
+$guide_id = $guide_info['id'] ?? null;
 
 // Get guide statistics
 $guide_id = $guide_info['id'] ?? null;
@@ -38,14 +39,13 @@ $total_bookings->bind_param("s", $guide_id);
 $total_bookings->execute();
 $bookings_count = $total_bookings->get_result()->fetch_assoc()['total'];
 
-// Total earnings (confirmed bookings only)
+// Pendapatan bersih guide dari pendapatan_guide
 $total_earnings = $conn->prepare("
-    SELECT COALESCE(SUM(b.total_price), 0) AS total 
-    FROM bookings b 
-    JOIN trips t ON b.trip_id = t.id 
-    WHERE t.guide_id = ? AND b.status = 'confirmed'
+    SELECT COALESCE(SUM(amount), 0) AS total
+    FROM pendapatan_guide
+    WHERE guide_id = ? AND source = 'package'
 ");
-$total_earnings->bind_param("s", $guide_id);
+$total_earnings->bind_param("i", $guide_id);
 $total_earnings->execute();
 $earnings = $total_earnings->get_result()->fetch_assoc()['total'];
 
@@ -70,7 +70,33 @@ $pending_bookings->bind_param("s", $guide_id);
 $pending_bookings->execute();
 $pending_count = $pending_bookings->get_result()->fetch_assoc()['total'];
 
-$guide_rating = $guide_info['rating'] ?? 0;
+    // Calculate average rating for guide for dashboard display
+    // Calculate average rating for guide for dashboard display
+$guide_rating = 0;
+if ($guide_info && $guide_id) { // Pastikan $guide_id ada
+    $rating_query_dashboard = $conn->prepare("
+        SELECT AVG(rating) as avg_rating
+        FROM feedback
+        WHERE guide_id = ?
+    ");
+    $rating_query_dashboard->bind_param("i", $guide_id);
+    $rating_query_dashboard->execute();
+    $rating_result_dashboard = $rating_query_dashboard->get_result()->fetch_assoc();
+    $guide_rating = round($rating_result_dashboard['avg_rating'] ?? 0, 1);
+    // Update rating di tabel guide agar selalu sinkron
+    $update_guide_rating_dashboard = $conn->prepare("UPDATE guide SET rating = ? WHERE id = ?");
+    $update_guide_rating_dashboard->bind_param("di", $guide_rating, $guide_id);
+    $update_guide_rating_dashboard->execute();
+}
+
+// Tambahkan perhitungan pendapatan dari guide_services
+$service_fee_total = 0;
+if ($guide_id) {
+    $service_fee_query = $conn->prepare("SELECT COALESCE(SUM(service_fee),0) as total FROM guide_services WHERE guide_id = ?");
+    $service_fee_query->bind_param("s", $guide_id);
+    $service_fee_query->execute();
+    $service_fee_total = $service_fee_query->get_result()->fetch_assoc()['total'];
+}
 ?>
 
 <!DOCTYPE html>
@@ -333,6 +359,14 @@ $guide_rating = $guide_info['rating'] ?? 0;
                     <div>
                         <h3>Pesanan Pending</h3>
                         <p><?= $pending_count ?></p>
+                    </div>
+                </div>
+
+                <div class="stat-card guide-card">
+                    <i class="fas fa-wallet"></i>
+                    <div>
+                        <h3>Pendapatan Service Fee</h3>
+                        <p>Rp <?= number_format($service_fee_total, 0, ',', '.') ?></p>
                     </div>
                 </div>
             </section>

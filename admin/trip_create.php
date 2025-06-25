@@ -13,43 +13,28 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action']) && $_POST['action'] === 'add_trip') {
-        $mountain_id = $_POST['mountain_id'];
-        $guide_id = $_POST['guide_id'];
-        $title = $conn->real_escape_string($_POST['title']);
-        $description = $conn->real_escape_string($_POST['description']);
-        $start_date = $_POST['start_date'];
-        $end_date = $_POST['end_date'];
-        $duration = intval($_POST['duration']);
-        $price = floatval($_POST['price']);
-        $max_participants = intval($_POST['max_participants']);
-        $included = $conn->real_escape_string($_POST['included']);
-        $not_included = $conn->real_escape_string($_POST['not_included']);
-        $meeting_point = $conn->real_escape_string($_POST['meeting_point']);
-        
-        $trip_id = 't' . uniqid();
-        $image_url = 'assets/images/trips/trip_default.jpg'; // Default image
-
-        // Insert trip into database
-        $insert_trip = $conn->prepare("
-            INSERT INTO trips (id, mountain_id, guide_id, title, description, start_date, end_date, duration, price, max_participants, included, not_included, meeting_point, image_url) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-        $insert_trip->bind_param("sssssiidisssss", $trip_id, $mountain_id, $guide_id, $title, $description, $start_date, $end_date, $duration, $price, $max_participants, $included, $not_included, $meeting_point, $image_url);
-        
-        if ($insert_trip->execute()) {
-            $message = "Trip berhasil ditambahkan!";
-        } else {
-            $error = "Gagal menambahkan trip.";
-        }
+    $title = $conn->real_escape_string($_POST['title']);
+    $type = $conn->real_escape_string($_POST['type']);
+    $mountain_id = intval($_POST['mountain_id']);
+    $price = floatval($_POST['price']);
+    $status = $conn->real_escape_string($_POST['status']);
+    // Field lain bisa diisi default/null
+    $sql = "INSERT INTO mountain_tickets (title, type, mountain_id, price, status) VALUES (?, ?, ?, ?, ?)";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ssids", $title, $type, $mountain_id, $price, $status);
+    if ($stmt->execute()) {
+        echo 'success';
+    } else {
+        echo 'error';
     }
+    exit();
 }
 
 // Get mountains for dropdown
 $mountains = $conn->query("SELECT * FROM mountains ORDER BY name ASC")->fetch_all(MYSQLI_ASSOC);
 
 // Get guides for dropdown
-$guides = $conn->query("SELECT * FROM guides ORDER BY name ASC")->fetch_all(MYSQLI_ASSOC);
+$guides = $conn->query("SELECT * FROM users WHERE role='guide' ORDER BY name ASC")->fetch_all(MYSQLI_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -187,14 +172,17 @@ $guides = $conn->query("SELECT * FROM guides ORDER BY name ASC")->fetch_all(MYSQ
         <aside class="admin-sidebar">
             <div class="nav-section-title">Admin Panel</div>
             <ul class="nav-links">
-                <li><a href="index.php" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a></li>
-                <li><a href="users.php" class="nav-link"><i class="fas fa-users"></i> Pengguna</a></li>
-                <li><a href="guides.php" class="nav-link"><i class="fas fa-map-signs"></i> Guide</a></li>
-                <li><a href="mountains.php" class="nav-link"><i class="fas fa-mountain"></i> Gunung</a></li>
-                <li><a href="trips.php" class="nav-link active"><i class="fas fa-route"></i> Trip</a></li>
-                <li><a href="profile.php" class="nav-link"><i class="fas fa-user-cog"></i> Profil</a></li>
-                <li><a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-            </ul>
+            <li><a href="index.php" class="nav-link"><i class="fas fa-chart-line"></i> Dashboard</a></li>
+            <li><a href="users.php" class="nav-link "><i class="fas fa-users"></i> Pengguna</a></li>
+            <li><a href="guides.php" class="nav-link"><i class="fas fa-map-signs"></i> Guide</a></li>
+            <li><a href="mountains.php" class="nav-link"><i class="fas fa-mountain"></i> Gunung</a></li>
+            <li><a href="trips.php" class="nav-link active"><i class="fas fa-route"></i> Trip</a></li>
+            <li><a href="feedback.php" class="nav-link"><i class="fas fa-comments"></i> Feedback</a></li>
+            <li><a href="lihat_pembayaran.php" class="nav-link"><i class="fas fa-money-bill-wave"></i> Lihat Pembayaran</a></li>
+            <li><a href="notifikasi.php" class="nav-link"><i class="fas fa-bell"></i> Notifikasi</a></li>
+            <li><a href="profile.php" class="nav-link"><i class="fas fa-user-cog"></i> Profil</a></li>
+            <li><a href="../logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+        </ul>
         </aside>
 
         <!-- Main Content -->
@@ -214,8 +202,17 @@ $guides = $conn->query("SELECT * FROM guides ORDER BY name ASC")->fetch_all(MYSQ
 
             <div class="admin-form-container">
                 <form method="POST" action="">
-                    <input type="hidden" name="action" value="add_trip">
-
+                    <div class="form-group">
+                        <label for="title">Judul Trip:</label>
+                        <input type="text" id="title" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="type">Tipe Trip:</label>
+                        <select id="type" name="type" required>
+                            <option value="regular">Regular</option>
+                            <option value="package">Package</option>
+                        </select>
+                    </div>
                     <div class="form-group">
                         <label for="mountain_id">Pilih Gunung:</label>
                         <select name="mountain_id" id="mountain_id" required>
@@ -227,7 +224,6 @@ $guides = $conn->query("SELECT * FROM guides ORDER BY name ASC")->fetch_all(MYSQ
                             <?php endforeach; ?>
                         </select>
                     </div>
-
                     <div class="form-group">
                         <label for="guide_id">Pilih Guide:</label>
                         <select name="guide_id" id="guide_id" required>
@@ -239,57 +235,33 @@ $guides = $conn->query("SELECT * FROM guides ORDER BY name ASC")->fetch_all(MYSQ
                             <?php endforeach; ?>
                         </select>
                     </div>
-
-                    <div class="form-group">
-                        <label for="title">Judul Trip:</label>
-                        <input type="text" id="title" name="title" placeholder="Contoh: Pendakian Rinjani 3D2N" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="description">Deskripsi Trip:</label>
-                        <textarea id="description" name="description" placeholder="Jelaskan detail trip, rute, aktivitas, dan hal menarik lainnya..." required></textarea>
-                    </div>
-
                     <div class="form-group">
                         <label for="start_date">Tanggal Mulai:</label>
                         <input type="date" id="start_date" name="start_date" required>
                     </div>
-
                     <div class="form-group">
                         <label for="end_date">Tanggal Selesai:</label>
                         <input type="date" id="end_date" name="end_date" required>
                     </div>
-
-                    <div class="form-group">
-                        <label for="duration">Durasi (hari):</label>
-                        <input type="number" id="duration" name="duration" min="1" max="30" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="max_participants">Maksimal Peserta:</label>
-                        <input type="number" id="max_participants" name="max_participants" min="1" max="50" required>
-                    </div>
-
                     <div class="form-group">
                         <label for="price">Harga per Orang (Rp):</label>
-                        <input type="number" id="price" name="price" min="0" step="1000" placeholder="2500000" required>
+                        <input type="number" id="price" name="price" min="0" step="1000" required>
                     </div>
-
                     <div class="form-group">
-                        <label for="meeting_point">Titik Kumpul:</label>
-                        <input type="text" id="meeting_point" name="meeting_point" placeholder="Contoh: Basecamp Sembalun" required>
+                        <label for="capacity">Kapasitas Peserta:</label>
+                        <input type="number" id="capacity" name="capacity" min="1" max="50" required>
                     </div>
-
                     <div class="form-group">
-                        <label for="included">Yang Termasuk:</label>
-                        <textarea id="included" name="included" placeholder="Contoh: Guide berpengalaman, Peralatan camping, Makan 3x sehari, Transport lokal..." required></textarea>
+                        <label for="facilities">Fasilitas:</label>
+                        <textarea id="facilities" name="facilities" required></textarea>
                     </div>
-
                     <div class="form-group">
-                        <label for="not_included">Yang Tidak Termasuk:</label>
-                        <textarea id="not_included" name="not_included" placeholder="Contoh: Tiket pesawat, Asuransi perjalanan, Pengeluaran pribadi..." required></textarea>
+                        <label for="status">Status:</label>
+                        <select id="status" name="status" required>
+                            <option value="active">Aktif</option>
+                            <option value="inactive">Nonaktif</option>
+                        </select>
                     </div>
-
                     <div class="form-group form-group-actions">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save"></i>

@@ -1,3 +1,4 @@
+coba km liht di file trips.php ini ada yang salah ga? itu facilities yang nnati bakal ku inputin di form masuk ga di database? soalnya di database tuh dia jadi 0
 
 <?php
 session_start();
@@ -13,7 +14,7 @@ $user_id = $_SESSION['user_id'];
 $userName = $_SESSION['user_name'];
 
 // Get guide info
-$guide_query = $conn->prepare("SELECT * FROM guides WHERE user_id = ?");
+$guide_query = $conn->prepare("SELECT * FROM guide WHERE user_id = ?");
 $guide_query->bind_param("s", $user_id);
 $guide_query->execute();
 $guide_result = $guide_query->get_result();
@@ -27,42 +28,71 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
+                
             case 'add_trip':
                 $mountain_id = $_POST['mountain_id'];
-                $title = $conn->real_escape_string($_POST['title']);
-                $description = $conn->real_escape_string($_POST['description']);
+                $title = $_POST['title'];
+                $description = $_POST['description'];
                 $start_date = $_POST['start_date'];
                 $end_date = $_POST['end_date'];
-                $duration = intval($_POST['duration']);
-                $price = floatval($_POST['price']);
-                $max_participants = intval($_POST['max_participants']);
-                $included = $conn->real_escape_string($_POST['included']);
-                $not_included = $conn->real_escape_string($_POST['not_included']);
-                $meeting_point = $conn->real_escape_string($_POST['meeting_point']);
+                $package_price = $_POST['price']; // Sesuaikan dengan kolom package_price
+                $capacity = $_POST['max_participants']; // Sesuaikan dengan kolom capacity
+                $facilities = $_POST['included']; // Sesuaikan dengan kolom facilities
+                $type = $_POST['type'] ?? 'regular'; // Tambahkan type
+                $mountain_ticket_id = $_POST['mountain_ticket_id'] ?? null; // Tambahkan mountain_ticket_id
                 
-                $trip_id = 't' . uniqid();
-                $image_url = 'assets/images/trips/trip_default.jpg';
+                // Upload image jika ada
+                $image_path = null;
+                if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
+                    $upload_dir = '../uploads/trips/';
+                    if (!file_exists($upload_dir)) {
+                        mkdir($upload_dir, 0777, true);
+                    }
+                    
+                    $file_extension = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+                    $image_filename = 'trip_' . time() . '.' . $file_extension;
+                    $image_path = $upload_dir . $image_filename;
+                    
+                    if (move_uploaded_file($_FILES['image']['tmp_name'], $image_path)) {
+                        $image_path = 'uploads/trips/' . $image_filename; // Path relatif untuk database
+                    } else {
+                        $image_path = null;
+                    }
+                }
                 
                 $insert_trip = $conn->prepare("
-                    INSERT INTO trips (id, mountain_id, title, description, start_date, end_date, duration, price, max_participants, guide_id, included, not_included, meeting_point, image_url) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO trips (title, type, mountain_id, guide_id, start_date, end_date, package_price, capacity, facilities, status, image, mountain_ticket_id, description) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
                 ");
-                $insert_trip->bind_param("sssssiidisssss", $trip_id, $mountain_id, $title, $description, $start_date, $end_date, $duration, $price, $max_participants, $guide_id, $included, $not_included, $meeting_point, $image_url);
+
+                $insert_trip->bind_param("ssiissdissis", 
+                    $title, 
+                    $type, 
+                    $mountain_id, 
+                    $guide_id, 
+                    $start_date, 
+                    $end_date, 
+                    $package_price, 
+                    $capacity, 
+                    $facilities, 
+                    $image_path, 
+                    $mountain_ticket_id, 
+                    $description
+                );
                 
                 if ($insert_trip->execute()) {
                     $message = "Trip berhasil ditambahkan!";
                 } else {
-                    $error = "Gagal menambahkan trip.";
+                    $error = "Gagal menambahkan trip: " . $conn->error;
                 }
                 break;
-                
             case 'update_status':
                 $trip_id = $_POST['trip_id'];
                 $status = $_POST['status'];
                 
-                $update_status = $conn->prepare("UPDATE trips SET featured = ? WHERE id = ? AND guide_id = ?");
-                $featured = ($status === 'active') ? 1 : 0;
-                $update_status->bind_param("iss", $featured, $trip_id, $guide_id);
+                // Ganti 'featured' dengan 'status'
+                $update_status = $conn->prepare("UPDATE trips SET status = ? WHERE id = ? AND guide_id = ?");
+                $update_status->bind_param("sii", $status, $trip_id, $guide_id);
                 
                 if ($update_status->execute()) {
                     $message = "Status trip berhasil diperbarui!";
@@ -76,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // Check if there are any bookings for this trip
                 $check_bookings = $conn->prepare("SELECT COUNT(*) as booking_count FROM bookings WHERE trip_id = ?");
-                $check_bookings->bind_param("s", $trip_id);
+                $check_bookings->bind_param("i", $trip_id); // Ubah dari "s" ke "i" karena trip_id adalah integer
                 $check_bookings->execute();
                 $booking_result = $check_bookings->get_result()->fetch_assoc();
                 
@@ -84,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = "Tidak dapat menghapus trip yang sudah memiliki pesanan!";
                 } else {
                     $delete_trip = $conn->prepare("DELETE FROM trips WHERE id = ? AND guide_id = ?");
-                    $delete_trip->bind_param("ss", $trip_id, $guide_id);
+                    $delete_trip->bind_param("ii", $trip_id, $guide_id); // Ubah dari "ss" ke "ii"
                     
                     if ($delete_trip->execute()) {
                         $message = "Trip berhasil dihapus!";
@@ -101,13 +131,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $mountains = $conn->query("SELECT * FROM mountains ORDER BY name ASC")->fetch_all(MYSQLI_ASSOC);
 
 // Get guide's trips
+// Get guide's trips
 $trips_query = $conn->prepare("
-    SELECT t.*, m.name as mountain_name, m.image_url as mountain_image,
-           (SELECT COUNT(*) FROM bookings b WHERE b.trip_id = t.id) as total_bookings
+    SELECT t.*, m.name as mountain_name, mt.title as ticket_title, mt.price as ticket_price,
+           COUNT(b.id) as total_bookings
     FROM trips t 
     LEFT JOIN mountains m ON t.mountain_id = m.id 
+    LEFT JOIN mountain_tickets mt ON t.mountain_ticket_id = mt.id
+    LEFT JOIN bookings b ON t.id = b.trip_id AND b.status = 'confirmed'
     WHERE t.guide_id = ? 
-    ORDER BY t.start_date DESC
+    GROUP BY t.id
+    ORDER BY t.id DESC
 ");
 $trips_query->bind_param("s", $guide_id);
 $trips_query->execute();
@@ -639,16 +673,31 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
             <?php if (count($trips) > 0): ?>
                 <div class="trips-grid">
                     <?php foreach ($trips as $trip): 
-                        $participants_percentage = $trip['max_participants'] > 0 ? ($trip['total_bookings'] / $trip['max_participants']) * 100 : 0;
-                        $status = $trip['featured'] ? 'active' : 'inactive';
-                        if ($trip['total_bookings'] >= $trip['max_participants']) {
+                        // Set default value untuk total_bookings jika tidak ada
+                        $total_bookings = $trip['total_bookings'] ?? 0;
+                        $participants_percentage = $trip['capacity'] > 0 ? ($total_bookings / $trip['capacity']) * 100 : 0;
+                        $status = $trip['status'] === 'active' ? 'active' : 'inactive';
+                        if ($total_bookings >= $trip['capacity']) {
                             $status = 'full';
                         }
+                        
+                        // Hitung durasi dari tanggal
+                        $start_date = new DateTime($trip['start_date']);
+                        $end_date = new DateTime($trip['end_date']);
+                        $duration = $start_date->diff($end_date)->days + 1;
                     ?>
                         <div class="trip-card">
                             <div class="trip-image">
-                                <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/515966f9-d134-4063-9c40-78312c6951c2.png?php echo urlencode($trip['mountain_name']); ?>" 
-                                     alt="Beautiful mountain landscape of <?php echo htmlspecialchars($trip['mountain_name']); ?> with hiking trails and scenic views perfect for guided trekking adventures">
+                                <?php if (!empty($trip['image']) && file_exists('../' . $trip['image'])): ?>
+                                    <img src="../<?php echo htmlspecialchars($trip['image']); ?>" 
+                                        alt="<?php echo htmlspecialchars($trip['title']); ?>">
+                                <?php else: ?>
+                                    <div class="no-image-placeholder">
+                                        <i class="fas fa-mountain"></i>
+                                        <p>No Image</p>
+                                    </div>
+                                <?php endif; ?>
+                                
                                 <div class="trip-status status-<?php echo $status; ?>">
                                     <?php 
                                     switch($status) {
@@ -659,6 +708,7 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
                                     ?>
                                 </div>
                             </div>
+
                             
                             <div class="trip-content">
                                 <h3 class="trip-title"><?php echo htmlspecialchars($trip['title']); ?></h3>
@@ -675,26 +725,26 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
                                     </div>
                                     <div class="meta-item">
                                         <i class="fas fa-clock"></i>
-                                        <span><?php echo $trip['duration']; ?> hari</span>
+                                        <span><?php echo $duration; ?> hari</span>
                                     </div>
                                     <div class="meta-item">
                                         <i class="fas fa-users"></i>
-                                        <span>Max <?php echo $trip['max_participants']; ?> orang</span>
+                                        <span>Max <?php echo $trip['capacity']; ?> orang</span>
                                     </div>
                                     <div class="meta-item">
-                                        <i class="fas fa-map-marker-alt"></i>
-                                        <span><?php echo htmlspecialchars(substr($trip['meeting_point'], 0, 20)); ?>...</span>
+                                        <i class="fas fa-tag"></i>
+                                        <span><?php echo ucfirst($trip['type']); ?></span>
                                     </div>
                                 </div>
                                 
                                 <div class="trip-price">
-                                    Rp <?php echo number_format($trip['price'], 0, ',', '.'); ?>
+                                    Rp <?php echo number_format($trip['package_price'], 0, ',', '.'); ?>
                                     <small>/orang</small>
                                 </div>
                                 
                                 <div class="trip-participants">
                                     <span class="participants-count">
-                                        <strong><?php echo $trip['total_bookings']; ?></strong> dari <strong><?php echo $trip['max_participants']; ?></strong> peserta
+                                        <strong><?php echo $total_bookings; ?></strong> dari <strong><?php echo $trip['capacity']; ?></strong> peserta
                                     </span>
                                     <div class="participants-bar">
                                         <div class="participants-fill" style="width: <?php echo min($participants_percentage, 100); ?>%"></div>
@@ -714,7 +764,7 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
                                         <i class="fas fa-<?php echo $status === 'active' ? 'pause' : 'play'; ?>"></i>
                                         <span><?php echo $status === 'active' ? 'Nonaktif' : 'Aktif'; ?>kan</span>
                                     </button>
-                                    <button class="action-btn btn-danger-action" onclick="openDeleteModal('<?php echo $trip['id']; ?>', '<?php echo htmlspecialchars($trip['title']); ?>', <?php echo $trip['total_bookings']; ?>)">
+                                    <button class="action-btn btn-danger-action" onclick="openDeleteModal('<?php echo $trip['id']; ?>', '<?php echo htmlspecialchars($trip['title']); ?>', <?php echo $total_bookings; ?>)">
                                         <i class="fas fa-trash"></i>
                                         <span>Hapus</span>
                                     </button>
@@ -740,90 +790,99 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
     <!-- Add Trip Modal -->
     <div id="addTripModal" class="modal">
         <div class="modal-content">
-            <div class="modal-header">
-                <h2><i class="fas fa-plus-circle"></i> Tambah Trip Baru</h2>
-                <span class="close" onclick="closeModal('addTripModal')">&times;</span>
-            </div>
-            
-            <form method="POST" action="">
+            <span class="close">&times;</span>
+            <h2>Tambah Trip Baru</h2>
+            <form method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="add_trip">
+                
+                <div class="form-group">
+                    <label for="type">Jenis Trip</label>
+                    <select name="type" id="type" required onchange="toggleMountainTicketField()">
+                        <option value="">-- Pilih Jenis Trip --</option>
+                        <option value="regular">Reguler</option>
+                        <option value="package">Paket (Termasuk Tiket Gunung)</option>
+                    </select>
+                </div>
                 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="mountain_id">Pilih Gunung</label>
-                        <select name="mountain_id" id="mountain_id" required>
-                            <option value="">-- Pilih Gunung --</option>
-                            <?php foreach ($mountains as $mountain): ?>
+                        <label for="mountain_id">Gunung</label>
+                        <select name="mountain_id" required>
+                            <option value="">Pilih Gunung</option>
+                            <?php
+                            $mountains = $conn->query("SELECT * FROM mountains ORDER BY name");
+                            while ($mountain = $mountains->fetch_assoc()):
+                            ?>
                                 <option value="<?php echo $mountain['id']; ?>">
-                                    <?php echo htmlspecialchars($mountain['name']); ?> (<?php echo $mountain['height']; ?>m)
+                                    <?php echo htmlspecialchars($mountain['name']); ?>
                                 </option>
-                            <?php endforeach; ?>
+                            <?php endwhile; ?>
                         </select>
                     </div>
                     
                     <div class="form-group">
                         <label for="title">Judul Trip</label>
-                        <input type="text" name="title" id="title" placeholder="Contoh: Pendakian Rinjani 3D2N" required>
+                        <input type="text" name="title" required>
                     </div>
                 </div>
                 
                 <div class="form-group">
-                    <label for="description">Deskripsi Trip</label>
-                    <textarea name="description" id="description" placeholder="Jelaskan detail trip, rute, aktivitas, dan hal menarik lainnya..." required></textarea>
+                    <label for="description">Deskripsi</label>
+                    <textarea name="description" rows="3" required></textarea>
                 </div>
                 
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="start_date">Tanggal Mulai</label>
-                        <input type="date" name="start_date" id="start_date" required>
+                        <input type="date" name="start_date" required>
                     </div>
                     
                     <div class="form-group">
                         <label for="end_date">Tanggal Selesai</label>
-                        <input type="date" name="end_date" id="end_date" required>
+                        <input type="date" name="end_date" required>
                     </div>
                 </div>
                 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="duration">Durasi (hari)</label>
-                        <input type="number" name="duration" id="duration" min="1" max="30" required>
+                        <label for="price">Harga (Rp)</label>
+                        <input type="number" name="price" min="0" required>
+                        <small>Untuk paket: harga total termasuk tiket gunung</small>
                     </div>
                     
                     <div class="form-group">
-                        <label for="max_participants">Maksimal Peserta</label>
-                        <input type="number" name="max_participants" id="max_participants" min="1" max="50" required>
+                        <label for="max_participants">Kapasitas Maksimal</label>
+                        <input type="number" name="max_participants" min="1" required>
                     </div>
                 </div>
                 
-                <div class="form-group">
-                    <label for="price">Harga per Orang (Rp)</label>
-                    <input type="number" name="price" id="price" min="0" step="1000" placeholder="2500000" required>
+                <div class="form-group" id="mountainTicketGroup" style="display: none;">
+                    <label for="mountain_ticket_id">Tiket Gunung (untuk Paket)</label>
+                    <select name="mountain_ticket_id" id="mountain_ticket_id">
+                        <option value="">-- Pilih Tiket Gunung --</option>
+                        <?php
+                        $mountain_tickets_query = $conn->query("SELECT id, title, price FROM mountain_tickets WHERE status = 'active' ORDER BY title ASC");
+                        while ($ticket = $mountain_tickets_query->fetch_assoc()):
+                        ?>
+                            <option value="<?php echo $ticket['id']; ?>">
+                                <?php echo htmlspecialchars($ticket['title']); ?> (Rp <?php echo number_format($ticket['price'], 0, ',', '.'); ?>)
+                            </option>
+                        <?php endwhile; ?>
+                    </select>
+                    <small>Pilih tiket gunung yang akan termasuk dalam paket ini.</small>
                 </div>
                 
                 <div class="form-group">
-                    <label for="meeting_point">Titik Kumpul</label>
-                    <input type="text" name="meeting_point" id="meeting_point" placeholder="Contoh: Basecamp Sembalun" required>
+                    <label for="included">Fasilitas Termasuk</label>
+                    <textarea name="included" rows="3" placeholder="Contoh: Guide profesional, Peralatan hiking, Makan 3x, dll"></textarea>
                 </div>
                 
                 <div class="form-group">
-                    <label for="included">Yang Termasuk</label>
-                    <textarea name="included" id="included" placeholder="Contoh: Guide berpengalaman, Peralatan camping, Makan 3x sehari, Transport lokal..." required></textarea>
+                    <label for="image">Foto Trip</label>
+                    <input type="file" name="image" accept="image/*">
                 </div>
                 
-                <div class="form-group">
-                    <label for="not_included">Yang Tidak Termasuk</label>
-                    <textarea name="not_included" id="not_included" placeholder="Contoh: Tiket pesawat, Asuransi perjalanan, Pengeluaran pribadi..." required></textarea>
-                </div>
-                
-                <div class="form-actions">
-                    <button type="button" class="action-btn btn-secondary-action" onclick="closeModal('addTripModal')">
-                        <i class="fas fa-times"></i> Batal
-                    </button>
-                    <button type="submit" class="action-btn btn-primary-action">
-                        <i class="fas fa-save"></i> Simpan Trip
-                    </button>
-                </div>
+                <button type="submit" class="btn btn-primary">Tambah Trip</button>
             </form>
         </div>
     </div>
@@ -978,6 +1037,25 @@ $trips = $trips_query->get_result()->fetch_all(MYSQLI_ASSOC);
                 setTimeout(() => alert.remove(), 500);
             });
         }, 5000);
+        function toggleMountainTicketField() {
+            const typeSelect = document.getElementById('type');
+            const mountainTicketGroup = document.getElementById('mountainTicketGroup');
+            const mountainTicketSelect = document.getElementById('mountain_ticket_id');
+
+            if (typeSelect.value === 'package') {
+                mountainTicketGroup.style.display = 'block';
+                mountainTicketSelect.setAttribute('required', 'required');
+            } else {
+                mountainTicketGroup.style.display = 'none';
+                mountainTicketSelect.removeAttribute('required');
+                mountainTicketSelect.value = '';
+            }
+        }
+
+        // Panggil saat halaman dimuat
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleMountainTicketField();
+        });
     </script>
 </body>
 </html>

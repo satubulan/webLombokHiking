@@ -11,8 +11,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'guide') {
 $user_id = $_SESSION['user_id'];
 
 // Get guide info
-$guide_query = $conn->prepare("SELECT * FROM guides WHERE user_id = ?");
-$guide_query->bind_param("s", $user_id);
+$guide_query = $conn->prepare("SELECT * FROM guide WHERE user_id = ?");
+$guide_query->bind_param("i", $user_id); // Changed to 'i' assuming user_id is int
 $guide_query->execute();
 $guide_result = $guide_query->get_result();
 $guide_info = $guide_result->fetch_assoc();
@@ -30,14 +30,19 @@ if (!$trip_id) {
     exit();
 }
 
-// Get trip details with mountain name
+// Get trip details with mountain name and mountain ticket info
 $trip_query = $conn->prepare("
-    SELECT t.*, m.name as mountain_name
+    SELECT 
+        t.*, 
+        m.name as mountain_name,
+        mt.title as mountain_ticket_title,
+        mt.price as mountain_ticket_price
     FROM trips t
     LEFT JOIN mountains m ON t.mountain_id = m.id
+    LEFT JOIN mountain_tickets mt ON t.mountain_ticket_id = mt.id
     WHERE t.id = ? AND t.guide_id = ?
 ");
-$trip_query->bind_param("ss", $trip_id, $guide_id);
+$trip_query->bind_param("ii", $trip_id, $guide_id); // Changed to 'ii' assuming trip_id and guide_id are int
 $trip_query->execute();
 $trip = $trip_query->get_result()->fetch_assoc();
 
@@ -46,6 +51,12 @@ if (!$trip) {
     header('Location: trips.php?error=' . urlencode('Trip tidak ditemukan'));
     exit();
 }
+
+// Calculate duration
+$start_date_obj = new DateTime($trip['start_date']);
+$end_date_obj = new DateTime($trip['end_date']);
+$duration = $start_date_obj->diff($end_date_obj)->days + 1;
+
 ?>
 
 <!DOCTYPE html>
@@ -105,6 +116,12 @@ if (!$trip) {
             font-size: 1.2rem;
         }
         
+        .detail-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
         .detail-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -298,9 +315,15 @@ if (!$trip) {
                 </div>
 
                 <div class="detail-image">
-                    <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/e9fddc30-f474-4500-a67d-b95cdc979eee.png?php echo urlencode($trip['mountain_name'] ?? 'Trip Image'); ?>" 
-                         alt="Beautiful mountain landscape of <?php echo htmlspecialchars($trip['mountain_name'] ?? 'mountain'); ?> with scenic hiking trails and natural beauty perfect for guided adventure tourism"
-                         style="width: 100%; height: 100%; object-fit: cover; border-radius: 15px;">
+                    <?php if (!empty($trip['image']) && file_exists('../' . $trip['image'])): ?>
+                        <img src="../<?php echo htmlspecialchars($trip['image']); ?>" 
+                             alt="<?php echo htmlspecialchars($trip['title']); ?>">
+                    <?php else: ?>
+                        <div style="text-align: center;">
+                            <i class="fas fa-image" style="font-size: 4rem;"></i>
+                            <p>Gambar tidak tersedia</p>
+                        </div>
+                    <?php endif; ?>
                 </div>
 
                 <div class="detail-grid">
@@ -316,38 +339,43 @@ if (!$trip) {
                     
                     <div class="detail-item">
                         <strong><i class="fas fa-clock"></i> Durasi</strong>
-                        <div class="detail-value"><?php echo $trip['duration']; ?> hari</div>
+                        <div class="detail-value"><?php echo $duration; ?> hari</div>
                     </div>
                     
                     <div class="detail-item">
                         <strong><i class="fas fa-users"></i> Maksimal Peserta</strong>
-                        <div class="detail-value"><?php echo $trip['max_participants']; ?> orang</div>
+                        <div class="detail-value"><?php echo $trip['capacity']; ?> orang</div>
                     </div>
-                    
+
                     <div class="detail-item">
-                        <strong><i class="fas fa-map-marker-alt"></i> Titik Kumpul</strong>
-                        <div class="detail-value"><?php echo htmlspecialchars($trip['meeting_point']); ?></div>
+                        <strong><i class="fas fa-tag"></i> Jenis Trip</strong>
+                        <div class="detail-value"><?php echo ucfirst($trip['type']); ?></div>
                     </div>
                     
                     <div class="detail-item price-highlight">
                         <strong><i class="fas fa-money-bill-wave"></i> Harga per Orang</strong>
-                        <div>Rp <?php echo number_format($trip['price'], 0, ',', '.'); ?></div>
+                        <div>Rp <?php echo number_format($trip['package_price'], 0, ',', '.'); ?></div>
                     </div>
-                    
-                    <div class="detail-description">
-                        <h4><i class="fas fa-info-circle"></i> Deskripsi Trip</h4>
-                        <p><?php echo nl2br(htmlspecialchars($trip['description'])); ?></p>
-                    </div>
-                    
-                    <div class="detail-description">
-                        <h4><i class="fas fa-check-circle"></i> Yang Termasuk</h4>
-                        <p><?php echo nl2br(htmlspecialchars($trip['included'])); ?></p>
-                    </div>
-                    
-                    <div class="detail-description">
-                        <h4><i class="fas fa-times-circle"></i> Yang Tidak Termasuk</h4>
-                        <p><?php echo nl2br(htmlspecialchars($trip['not_included'])); ?></p>
-                    </div>
+
+                    <?php if ($trip['type'] === 'package' && !empty($trip['mountain_ticket_id'])): ?>
+                        <div class="detail-item">
+                            <strong><i class="fas fa-ticket-alt"></i> Tiket Gunung Termasuk</strong>
+                            <div class="detail-value">
+                                <?php echo htmlspecialchars($trip['mountain_ticket_title']); ?> 
+                                (Rp <?php echo number_format($trip['mountain_ticket_price'], 0, ',', '.'); ?>)
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                
+                <div class="detail-description">
+                    <h4><i class="fas fa-info-circle"></i> Deskripsi Trip</h4>
+                    <p><?php echo nl2br(htmlspecialchars($trip['description'])); ?></p>
+                </div>
+                
+                <div class="detail-description">
+                    <h4><i class="fas fa-check-circle"></i> Fasilitas Termasuk</h4>
+                    <p><?php echo nl2br(htmlspecialchars($trip['facilities'])); ?></p>
                 </div>
                 
                 <div class="action-buttons">
@@ -391,4 +419,3 @@ if (!$trip) {
     </script>
 </body>
 </html>
-
